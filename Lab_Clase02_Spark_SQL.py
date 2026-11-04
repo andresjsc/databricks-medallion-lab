@@ -437,11 +437,16 @@ print("Versión de Apache Spark:", spark.version)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC CREATE CATALOG IF NOT EXISTS comercializadora                  -- nivel 1: catálogo
+# MAGIC -- 4.1 · Crear el catálogo y el schema de práctica
+# MAGIC CREATE CATALOG IF NOT EXISTS comercializadora
 # MAGIC   COMMENT 'Sistema de ventas de la Comercializadora Andina';
 # MAGIC
-# MAGIC CREATE SCHEMA IF NOT EXISTS comercializadora.sistema_ventas     -- nivel 2: schema dentro del catálogo
+# MAGIC CREATE SCHEMA IF NOT EXISTS comercializadora.sistema_ventas
 # MAGIC   COMMENT 'Tablas del sistema de ventas: clientes, productos, vendedores y ventas';
+# MAGIC
+# MAGIC -- 4.2 · Fijar el catálogo y el schema de trabajo activo
+# MAGIC USE CATALOG comercializadora;
+# MAGIC USE SCHEMA sistema_ventas;
 
 # COMMAND ----------
 
@@ -472,6 +477,30 @@ print("Versión de Apache Spark:", spark.version)
 # MAGIC - `DATE`: tipo fecha (año-mes-día).
 # MAGIC
 # MAGIC **Qué esperar:** sin filas; la tabla queda vacía.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 4.3: Creación de la Tabla Delta 'clientes' en comercializadora.sistema_ventas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC CREATE OR REPLACE TABLE comercializadora.sistema_ventas.clientes (
+# MAGIC     id_cliente     INT       NOT NULL COMMENT 'Identificador único del cliente'
+# MAGIC   , nombre_cliente STRING    NOT NULL COMMENT 'Nombre completo del cliente'
+# MAGIC   , email          STRING             COMMENT 'Correo electrónico de contacto'
+# MAGIC   , telefono       STRING             COMMENT 'Número telefónico de contacto'
+# MAGIC   , ciudad         STRING             COMMENT 'Ciudad de residencia del cliente'
+# MAGIC   , departamento   STRING             COMMENT 'Departamento/Estado de residencia'
+# MAGIC   , fecha_registro DATE               COMMENT 'Fecha de registro en el sistema'
+# MAGIC   , CONSTRAINT pk_clientes PRIMARY KEY (id_cliente)
+# MAGIC )
+# MAGIC CLUSTER BY AUTO
+# MAGIC COMMENT 'Maestro de clientes para la Comercializadora Andina'
+# MAGIC TBLPROPERTIES (
+# MAGIC     'capa' = 'practica_curso'
+# MAGIC   , 'proyecto' = 'Comercializadora Andina'
+# MAGIC );
 
 # COMMAND ----------
 
@@ -521,6 +550,44 @@ print("Versión de Apache Spark:", spark.version)
 # MAGIC - La segunda sentencia (`SELECT … ORDER BY id_cliente`) muestra el resultado.
 # MAGIC
 # MAGIC **Qué esperar:** 15 clientes: 11 personas y 4 empresas en 5 ciudades.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- 4.4 · Llenar la tabla clientes con datos de demostración (Comercializadora)
+# MAGIC INSERT OVERWRITE comercializadora.sistema_ventas.clientes (
+# MAGIC     id_cliente
+# MAGIC   , nombre_cliente
+# MAGIC   , email
+# MAGIC   , ciudad
+# MAGIC   , departamento
+# MAGIC   , fecha_registro
+# MAGIC ) VALUES
+# MAGIC   (1,  'Laura Gómez Restrepo',          'laura.gomez@correo.com',            'Bogotá',       'Cundinamarca', DATE'2023-02-14')
+# MAGIC , (2,  'Andrés Martínez Ruiz',          'andres.martinez@correo.com',        'Medellín',     'Antioquia',    DATE'2023-03-02')
+# MAGIC , (3,  'Distribuciones El Faro S.A.S.', 'compras@elfaro.com.co',             'Barranquilla', 'Atlántico',    DATE'2023-04-18')
+# MAGIC , (4,  'Camila Torres Vargas',          'camila.torres@correo.com',          'Cali',         'Valle',        DATE'2023-06-25')
+# MAGIC , (5,  'Jorge Ramírez Ospina',          'jorge.ramirez@correo.com',          'Bogotá',       'Cundinamarca', DATE'2023-08-09')
+# MAGIC , (6,  'Valentina Castro Mejía',        'valentina.castro@correo.com',        'Bucaramanga',  'Santander',    DATE'2023-09-30')
+# MAGIC , (7,  'Soluciones Andinas Ltda.',      'gerencia@solucionesandinas.com.co', 'Bogotá',       'Cundinamarca', DATE'2023-11-12')
+# MAGIC , (8,  'Sebastián López Herrera',       'sebastian.lopez@correo.com',        'Medellín',     'Antioquia',    DATE'2024-01-20')
+# MAGIC , (9,  'Daniela Moreno Silva',          'daniela.moreno@correo.com',          'Cali',         'Valle',        DATE'2024-02-28')
+# MAGIC , (10, 'Colegio San Martín',            'compras@colegiosanmartin.edu.co',   'Cali',         'Valle',        DATE'2024-04-05')
+# MAGIC , (11, 'Felipe Rojas Cárdenas',         'felipe.rojas@correo.com',            'Barranquilla', 'Atlántico',    DATE'2024-05-17')
+# MAGIC , (12, 'Mariana Pérez Quintero',        'mariana.perez@correo.com',          'Bogotá',       'Cundinamarca', DATE'2024-07-03')
+# MAGIC , (13, 'Innovar Antioquia S.A.S.',      'compras@innovarantioquia.com.co',   'Medellín',     'Antioquia',    DATE'2024-08-22')
+# MAGIC , (14, 'Santiago Díaz Londoño',         'santiago.diaz@correo.com',          'Bucaramanga',  'Santander',    DATE'2024-10-10')
+# MAGIC , (15, 'Isabella Hernández Ríos',       'isabella.hernandez@correo.com',      'Cali',         'Valle',        DATE'2024-12-01');
+# MAGIC
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Consulta de verificación
+# MAGIC SELECT * 
+# MAGIC FROM comercializadora.sistema_ventas.clientes 
+# MAGIC ORDER BY id_cliente;
 
 # COMMAND ----------
 
@@ -575,8 +642,8 @@ print("Versión de Apache Spark:", spark.version)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC -- 1. Ver el historial completo de cambios, quién los hizo y con qué operación
-# MAGIC DESCRIBE HISTORY dev_practica_ui.bronze.clientes;
+# MAGIC -- 4.5 · Inspeccionar metadatos físicos e internos de la tabla Delta (Comercializadora)
+# MAGIC DESCRIBE DETAIL comercializadora.sistema_ventas.clientes;
 # MAGIC
 
 # COMMAND ----------
@@ -598,6 +665,50 @@ print("Versión de Apache Spark:", spark.version)
 # MAGIC
 # MAGIC **Qué esperar:** dos mensajes de rechazo: `DELTA_NOT_NULL_CONSTRAINT_VIOLATED` (falta el id) y `CAST_INVALID_INPUT`
 # MAGIC (`'no-es-fecha'` no es una fecha válida; el **modo ANSI** de Spark da error en lugar de guardar `NULL`).
+
+# COMMAND ----------
+
+# ============================================================================
+# SECCIÓN 4.6: Validación de Calidad y Restricciones en Delta Lake (Comercializadora)
+# ============================================================================
+
+# Intento 1: Un cliente SIN id_cliente (la columna tiene restricción NOT NULL)
+try:
+    spark.sql("""
+        INSERT INTO comercializadora.sistema_ventas.clientes (
+            id_cliente
+          , nombre_cliente
+          , email
+          , ciudad
+          , departamento
+          , fecha_registro
+        ) VALUES (
+            NULL
+          , 'Sin identificador'
+          , NULL
+          , 'Cali'
+          , 'Valle'
+          , current_date()
+        )
+    """)
+except Exception as e:
+    print("Rechazado por la restricción NOT NULL:\n", str(e).splitlines()[0][:220])
+
+# Intento 2: Una fecha inválida (la columna es de tipo DATE)
+try:
+    spark.sql("""
+        INSERT INTO comercializadora.sistema_ventas.clientes (
+            id_cliente
+          , nombre_cliente
+          , fecha_registro
+        ) VALUES (
+            99
+          , 'Fecha inválida'
+          , CAST('no-es-fecha' AS DATE)
+        )
+    """)
+except Exception as e:
+    print("\nRechazado por el tipo de dato (schema enforcement):\n", str(e).splitlines()[0][:220])
 
 # COMMAND ----------
 
@@ -667,6 +778,23 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC UPDATE comercializadora.sistema_ventas.clientes
+# MAGIC SET email = 'laura.gomez.restrepo@correo.com'
+# MAGIC WHERE id_cliente = 1;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT id_cliente
+# MAGIC      , nombre_cliente
+# MAGIC      , email
+# MAGIC      , fecha_registro
+# MAGIC FROM comercializadora.sistema_ventas.clientes
+# MAGIC WHERE id_cliente = 1;
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC UPDATE dev_practica_ui.bronze.clientes
 # MAGIC SET email = 'laura.gomez.r@correo.com'
 # MAGIC WHERE id_cliente = 1;
@@ -680,6 +808,27 @@ except Exception as e:
 # MAGIC - Luego contamos cuántos clientes quedan.
 # MAGIC
 # MAGIC **Qué esperar:** `clientes_que_quedan = 11` (antes eran 15). En 4.9–4.10 lo vamos a deshacer.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT *
+# MAGIC FROM comercializadora.sistema_ventas.clientes
+# MAGIC WHERE 1 = 1;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- 4.8 · Simular eliminación accidental de todos los clientes de Bogotá (error humano)
+# MAGIC DELETE FROM comercializadora.sistema_ventas.clientes
+# MAGIC WHERE ciudad = 'Bogotá';
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Verificar cuántos clientes quedan en la tabla
+# MAGIC SELECT count(*) AS clientes_que_quedan
+# MAGIC FROM comercializadora.sistema_ventas.clientes;
 
 # COMMAND ----------
 
@@ -704,6 +853,12 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC -- 4.9 · Inspeccionar el historial de transacciones Delta (Delta History)
+# MAGIC DESCRIBE HISTORY comercializadora.sistema_ventas.clientes;
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC DESCRIBE HISTORY dev_practica_ui.bronze.clientes;
 
 # COMMAND ----------
@@ -715,6 +870,24 @@ except Exception as e:
 # MAGIC - Si en 4.9 viste un `OPTIMIZE` automático antes del `DELETE`, usa la versión inmediatamente anterior al `DELETE`.
 # MAGIC
 # MAGIC **Qué esperar:** primero `Persona 11 · Empresa 4`; después del `RESTORE`, `clientes_recuperados = 15`.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Auditoría por Time Travel: Verificar el conteo por ciudad en la Versión 2 (antes del DELETE)
+# MAGIC SELECT ciudad
+# MAGIC      , count(*) AS clientes
+# MAGIC FROM comercializadora.sistema_ventas.clientes
+# MAGIC GROUP BY ciudad;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Auditoría por Time Travel: Verificar el conteo por ciudad en la Versión 2 (antes del DELETE)
+# MAGIC SELECT ciudad
+# MAGIC      , count(*) AS clientes
+# MAGIC FROM comercializadora.sistema_ventas.clientes VERSION AS OF 2
+# MAGIC GROUP BY ciudad;
 
 # COMMAND ----------
 
@@ -731,6 +904,20 @@ except Exception as e:
 # MAGIC
 # MAGIC SELECT count(*) AS clientes_recuperados 
 # MAGIC FROM dev_practica_ui.bronze.clientes;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Restaurar comercializadora a la versión 2
+# MAGIC RESTORE TABLE comercializadora.sistema_ventas.clientes TO VERSION AS OF 2;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT ciudad
+# MAGIC      , count(*) AS clientes
+# MAGIC FROM comercializadora.sistema_ventas.clientes
+# MAGIC GROUP BY ciudad;
 
 # COMMAND ----------
 
@@ -1177,6 +1364,45 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- MÓDULO 7: Creación e Ingesta de 'comercializadora.sistema_ventas.ventas'
+# MAGIC -- Origen de datos: Volume de nuestra arquitectura (dev_practica_ui)
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC CREATE OR REPLACE TABLE comercializadora.sistema_ventas.ventas
+# MAGIC CLUSTER BY AUTO
+# MAGIC COMMENT 'Ventas 2025, una fila por venta. Origen: ventas_2025.json'
+# MAGIC TBLPROPERTIES (
+# MAGIC     'capa' = 'plata'
+# MAGIC   , 'origen' = 'ventas_2025.json'
+# MAGIC   , 'responsable' = 'equipo-datos'
+# MAGIC )
+# MAGIC AS
+# MAGIC SELECT
+# MAGIC     CAST(id_venta        AS INT)            AS id_venta
+# MAGIC   , CAST(fecha_venta     AS DATE)           AS fecha_venta
+# MAGIC   , CAST(id_cliente      AS INT)            AS id_cliente
+# MAGIC   , CAST(id_producto     AS INT)            AS id_producto
+# MAGIC   , CAST(id_vendedor     AS INT)            AS id_vendedor
+# MAGIC   , CAST(cantidad        AS INT)            AS cantidad
+# MAGIC   , CAST(precio_unitario AS DECIMAL(12,2))  AS precio_unitario
+# MAGIC   , CAST(descuento_pct   AS DECIMAL(4,2))   AS descuento_pct
+# MAGIC   , CAST(cantidad * precio_unitario * (1 - COALESCE(descuento_pct, 0)) AS DECIMAL(14,2)) AS valor_neto
+# MAGIC   , canal
+# MAGIC   , pago.metodo                             AS metodo_pago
+# MAGIC   , CAST(pago.cuotas     AS INT)            AS cuotas
+# MAGIC   , estado
+# MAGIC   , _metadata.file_name                     AS archivo_origen
+# MAGIC   , current_timestamp()                     AS fecha_carga
+# MAGIC FROM read_files('/Volumes/dev_practica_ui/raw/archivos_ui/ventas_2025.json', format => 'json');
+# MAGIC
+# MAGIC -- Consulta de verificación
+# MAGIC SELECT count(*) AS total_ventas 
+# MAGIC FROM comercializadora.sistema_ventas.ventas;
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC CREATE OR REPLACE TABLE ventas
 # MAGIC CLUSTER BY AUTO
 # MAGIC COMMENT 'Ventas 2025, una fila por venta. Origen: ventas_2025.json'
@@ -1209,7 +1435,53 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC ALTER TABLE ventas ALTER COLUMN
+# MAGIC describe dev_practica_ui.bronze.ventas
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- Documentación de metadatos alineada a la tabla real 'dev_practica_ui.bronze.ventas'
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas ALTER COLUMN
+# MAGIC     id_venta        COMMENT 'Identificador único de la venta'
+# MAGIC   , fecha_venta     COMMENT 'Fecha de la venta (formato string crudo)'
+# MAGIC   , id_cliente      COMMENT 'Cliente que compró (clientes.id_cliente)'
+# MAGIC   , id_producto     COMMENT 'Producto vendido (productos.id_producto)'
+# MAGIC   , id_vendedor     COMMENT 'Vendedor (vendedores.id_vendedor). NULL en ventas en línea'
+# MAGIC   , cantidad        COMMENT 'Unidades vendidas'
+# MAGIC   , precio_unitario COMMENT 'Precio por unidad al momento de la venta, en COP'
+# MAGIC   , descuento_pct   COMMENT 'Descuento aplicado (0.05 = 5 %). NULL = sin dato'
+# MAGIC   , canal           COMMENT 'Tienda física, En línea o Teléfono'
+# MAGIC   , pago.metodo     COMMENT 'Medio de pago (campo dentro de struct pago)'
+# MAGIC   , pago.cuotas     COMMENT 'Número de cuotas (campo dentro de struct pago)'
+# MAGIC   , estado          COMMENT 'Completada, Devuelta o Anulada';
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas ALTER COLUMN
+# MAGIC   id_venta        COMMENT 'Identificador único de la venta',
+# MAGIC   fecha_venta     COMMENT 'Fecha de la venta',
+# MAGIC   id_cliente      COMMENT 'Cliente que compró (clientes.id_cliente)',
+# MAGIC   id_producto     COMMENT 'Producto vendido (productos.id_producto)',
+# MAGIC   id_vendedor     COMMENT 'Vendedor (vendedores.id_vendedor). NULL en ventas en línea',
+# MAGIC   cantidad        COMMENT 'Unidades vendidas',
+# MAGIC   precio_unitario COMMENT 'Precio por unidad al momento de la venta, en COP',
+# MAGIC   descuento_pct   COMMENT 'Descuento aplicado (0.05 = 5 %). NULL = sin dato',
+# MAGIC   valor_neto      COMMENT 'cantidad x precio_unitario x (1 - descuento), en COP',
+# MAGIC   canal           COMMENT 'Tienda física, En línea o Teléfono',
+# MAGIC   metodo_pago     COMMENT 'Medio de pago',
+# MAGIC   cuotas          COMMENT 'Número de cuotas (1 si no es a crédito)',
+# MAGIC   estado          COMMENT 'Completada, Devuelta o Anulada',
+# MAGIC   archivo_origen  COMMENT 'Archivo del que se cargó la fila',
+# MAGIC   fecha_carga     COMMENT 'Momento de la carga';
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC ALTER TABLE comercializadora.sistema_ventas.ventas ALTER COLUMN
 # MAGIC   id_venta        COMMENT 'Identificador único de la venta',
 # MAGIC   fecha_venta     COMMENT 'Fecha de la venta',
 # MAGIC   id_cliente      COMMENT 'Cliente que compró (clientes.id_cliente)',
@@ -1248,6 +1520,82 @@ except Exception as e:
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- MÓDULO 7: Restricciones de Calidad e Integridad Referencial en 'ventas'
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC -- 1. Restricción NOT NULL en la clave primaria
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas 
+# MAGIC   ALTER COLUMN id_venta SET NOT NULL;
+# MAGIC
+# MAGIC -- 2. Clave Primaria (Primary Key)
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas 
+# MAGIC   ADD CONSTRAINT pk_ventas 
+# MAGIC   PRIMARY KEY (id_venta);
+# MAGIC
+# MAGIC -- 3. Claves Foráneas (Foreign Keys)
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas 
+# MAGIC   ADD CONSTRAINT fk_ventas_clientes 
+# MAGIC   FOREIGN KEY (id_cliente) 
+# MAGIC   REFERENCES dev_practica_ui.bronze.clientes;
+# MAGIC
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas 
+# MAGIC   ADD CONSTRAINT fk_ventas_productos 
+# MAGIC   FOREIGN KEY (id_producto) 
+# MAGIC   REFERENCES dev_practica_ui.bronze.productos;
+# MAGIC
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas 
+# MAGIC   ADD CONSTRAINT fk_ventas_vendedores 
+# MAGIC   FOREIGN KEY (id_vendedor) 
+# MAGIC   REFERENCES dev_practica_ui.bronze.vendedores;
+# MAGIC
+# MAGIC -- 4. Restricción de Validación (Check Constraint)
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas 
+# MAGIC   ADD CONSTRAINT chk_cantidad_positiva 
+# MAGIC   CHECK (cantidad > 0);
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- MÓDULO 7: Restricciones de Calidad e Integridad Referencial en 'ventas'
+# MAGIC -- Catálogo: comercializadora.sistema_ventas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC -- 1. Restricción NOT NULL en la clave primaria
+# MAGIC ALTER TABLE comercializadora.sistema_ventas.ventas 
+# MAGIC   ALTER COLUMN id_venta SET NOT NULL;
+# MAGIC
+# MAGIC -- 2. Clave Primaria (Primary Key)
+# MAGIC ALTER TABLE comercializadora.sistema_ventas.ventas 
+# MAGIC   ADD CONSTRAINT pk_ventas 
+# MAGIC   PRIMARY KEY (id_venta);
+# MAGIC
+# MAGIC -- 3. Claves Foráneas (Foreign Keys)
+# MAGIC ALTER TABLE comercializadora.sistema_ventas.ventas 
+# MAGIC   ADD CONSTRAINT fk_ventas_clientes 
+# MAGIC   FOREIGN KEY (id_cliente) 
+# MAGIC   REFERENCES comercializadora.sistema_ventas.clientes;
+# MAGIC
+# MAGIC ALTER TABLE comercializadora.sistema_ventas.ventas 
+# MAGIC   ADD CONSTRAINT fk_ventas_productos 
+# MAGIC   FOREIGN KEY (id_producto) 
+# MAGIC   REFERENCES comercializadora.sistema_ventas.productos;
+# MAGIC
+# MAGIC ALTER TABLE comercializadora.sistema_ventas.ventas 
+# MAGIC   ADD CONSTRAINT fk_ventas_vendedores 
+# MAGIC   FOREIGN KEY (id_vendedor) 
+# MAGIC   REFERENCES comercializadora.sistema_ventas.vendedores;
+# MAGIC
+# MAGIC -- 4. Restricción de Validación (Check Constraint)
+# MAGIC ALTER TABLE comercializadora.sistema_ventas.ventas 
+# MAGIC   ADD CONSTRAINT chk_cantidad_positiva 
+# MAGIC   CHECK (cantidad > 0);
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### 7.4 · Verificar el resultado
 # MAGIC - `DESCRIBE TABLE EXTENDED ventas`: columnas, tipos y **comentarios**, más detalles de la tabla (clustering, ubicación, restricciones).
@@ -1257,12 +1605,17 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC DESCRIBE TABLE EXTENDED ventas;
+# MAGIC DESCRIBE TABLE EXTENDED dev_practica_ui.bronze.ventas;
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SHOW TBLPROPERTIES ventas;
+# MAGIC DESCRIBE TABLE EXTENDED comercializadora.sistema_ventas.ventas;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SHOW TBLPROPERTIES comercializadora.sistema_ventas.ventas;
 
 # COMMAND ----------
 
@@ -1279,6 +1632,36 @@ except Exception as e:
 # MAGIC UNION ALL SELECT 'productos',  count(*) FROM productos      -- se apila debajo
 # MAGIC UNION ALL SELECT 'vendedores', count(*) FROM vendedores
 # MAGIC UNION ALL SELECT 'ventas',     count(*) FROM ventas;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- Auditoría de volumen de datos por tabla (dev_practica_ui.bronze)
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT 'clientes' AS tabla
+# MAGIC      , COUNT(*)   AS filas 
+# MAGIC FROM dev_practica_ui.bronze.clientes
+# MAGIC
+# MAGIC UNION ALL
+# MAGIC
+# MAGIC SELECT 'productos' AS tabla
+# MAGIC      , COUNT(*)    AS filas 
+# MAGIC FROM dev_practica_ui.bronze.productos
+# MAGIC
+# MAGIC UNION ALL
+# MAGIC
+# MAGIC SELECT 'vendedores' AS tabla
+# MAGIC      , COUNT(*)     AS filas 
+# MAGIC FROM dev_practica_ui.bronze.vendedores
+# MAGIC
+# MAGIC UNION ALL
+# MAGIC
+# MAGIC SELECT 'ventas' AS tabla
+# MAGIC      , COUNT(*) AS filas 
+# MAGIC FROM dev_practica_ui.bronze.ventas;
 
 # COMMAND ----------
 
@@ -1311,6 +1694,65 @@ except Exception as e:
 # MAGIC     SELECT sum(valor_neto) AS ventas_netas                     -- ...las ventas por producto (¡repetido!)
 # MAGIC     FROM ventas WHERE estado = 'Completada' GROUP BY id_producto))
 # MAGIC ORDER BY ventas_netas DESC;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 8.1: Productos que venden más que el producto promedio (con CTE)
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC WITH cte_ventas_por_producto AS (
+# MAGIC     -- Paso 1: Calcular total de ventas netas por producto (solo completadas)
+# MAGIC     SELECT id_producto
+# MAGIC          , SUM(cantidad * precio_unitario * (1 - COALESCE(descuento_pct, 0))) AS ventas_netas
+# MAGIC     FROM dev_practica_ui.bronze.ventas
+# MAGIC     WHERE estado = 'Completada'
+# MAGIC     GROUP BY id_producto
+# MAGIC )
+# MAGIC , cte_promedio_ventas AS (
+# MAGIC     -- Paso 2: Promedio global reutilizando el resultado del Paso 1
+# MAGIC     SELECT AVG(ventas_netas) AS promedio_ventas
+# MAGIC     FROM cte_ventas_por_producto
+# MAGIC )
+# MAGIC -- Consulta Final: Filtrar los productos por encima de la media global
+# MAGIC SELECT p.id_producto
+# MAGIC      , p.ventas_netas
+# MAGIC      , a.promedio_ventas
+# MAGIC FROM cte_ventas_por_producto p
+# MAGIC CROSS JOIN cte_promedio_ventas a
+# MAGIC WHERE p.ventas_netas > a.promedio_ventas
+# MAGIC ORDER BY p.ventas_netas DESC;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 8.1: Productos que venden más que el producto promedio (con CTE)
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC WITH cte_ventas_por_producto AS (
+# MAGIC     -- Paso 1: Calcular el total de ventas netas por cada producto
+# MAGIC     SELECT id_producto
+# MAGIC          , SUM(valor_neto) AS ventas_netas
+# MAGIC     FROM comercializadora.sistema_ventas.ventas
+# MAGIC     WHERE estado = 'Completada'
+# MAGIC     GROUP BY id_producto
+# MAGIC )
+# MAGIC , cte_promedio_ventas AS (
+# MAGIC     -- Paso 2: Reutilizar la CTE anterior para calcular el promedio global
+# MAGIC     SELECT AVG(ventas_netas) AS promedio_ventas
+# MAGIC     FROM cte_ventas_por_producto
+# MAGIC )
+# MAGIC -- Consulta Final: Filtrar los productos por encima del promedio
+# MAGIC SELECT p.id_producto
+# MAGIC      , p.ventas_netas
+# MAGIC      , a.promedio_ventas
+# MAGIC FROM cte_ventas_por_producto p
+# MAGIC CROSS JOIN cte_promedio_ventas a
+# MAGIC WHERE p.ventas_netas > a.promedio_ventas
+# MAGIC ORDER BY p.ventas_netas DESC;
 
 # COMMAND ----------
 
@@ -1381,6 +1823,56 @@ except Exception as e:
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 8.2: Vendedores que cumplieron su meta cada mes (3 pasos encadenados)
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC WITH cte_ventas_ok AS (
+# MAGIC     -- Paso 1: Filtrar ventas completadas con vendedor asignado y calcular el valor neto
+# MAGIC     SELECT id_vendedor
+# MAGIC          , fecha_venta
+# MAGIC          , (cantidad * precio_unitario * (1 - COALESCE(descuento_pct, 0))) AS valor_neto
+# MAGIC     FROM dev_practica_ui.bronze.ventas
+# MAGIC     WHERE estado = 'Completada' 
+# MAGIC       AND id_vendedor IS NOT NULL
+# MAGIC )
+# MAGIC , cte_por_mes AS (
+# MAGIC     -- Paso 2: Truncar fecha a mes y agrupar total de ventas por vendedor
+# MAGIC     SELECT id_vendedor
+# MAGIC          , DATE_TRUNC('MONTH', CAST(fecha_venta AS DATE)) AS mes
+# MAGIC          , SUM(valor_neto) AS ventas_mes
+# MAGIC     FROM cte_ventas_ok
+# MAGIC     GROUP BY id_vendedor
+# MAGIC            , DATE_TRUNC('MONTH', CAST(fecha_venta AS DATE))
+# MAGIC )
+# MAGIC , cte_con_meta AS (
+# MAGIC     -- Paso 3: Unir con la tabla maestros de vendedores para calcular el % de cumplimiento
+# MAGIC     SELECT v.nombre_vendedor
+# MAGIC          , v.sede
+# MAGIC          , pm.mes
+# MAGIC          , pm.ventas_mes
+# MAGIC          , v.meta_mensual
+# MAGIC          , ROUND(pm.ventas_mes / v.meta_mensual * 100, 1) AS cumplimiento_pct
+# MAGIC     FROM cte_por_mes pm
+# MAGIC     INNER JOIN dev_practica_ui.bronze.vendedores v 
+# MAGIC        ON pm.id_vendedor = v.id_vendedor
+# MAGIC )
+# MAGIC -- Consulta Final: Evaluar bandera booleana de cumplimiento (true/false)
+# MAGIC SELECT nombre_vendedor
+# MAGIC      , sede
+# MAGIC      , mes
+# MAGIC      , ventas_mes
+# MAGIC      , meta_mensual
+# MAGIC      , cumplimiento_pct
+# MAGIC      , cumplimiento_pct >= 100 AS cumplio_meta
+# MAGIC FROM cte_con_meta
+# MAGIC ORDER BY mes ASC
+# MAGIC        , cumplimiento_pct DESC;
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### 8.3 · CTE + CTAS: guardar el resultado como tabla «oro»
 # MAGIC - Un CTAS puede llevar una CTE: `CREATE OR REPLACE TABLE … AS WITH … SELECT …`.
@@ -1422,6 +1914,70 @@ except Exception as e:
 # MAGIC        count_if(cumplimiento_pct >= 100) AS meses_con_meta,      -- cuántos meses cumplió
 # MAGIC        round(avg(cumplimiento_pct), 1)   AS cumplimiento_promedio
 # MAGIC FROM cumplimiento_metas
+# MAGIC GROUP BY nombre_vendedor
+# MAGIC ORDER BY meses_con_meta DESC;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- 8.3.1: Materialización en Capa Oro (CTAS con CTE interna)
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC CREATE OR REPLACE TABLE dev_practica_ui.bronze.cumplimiento_metas
+# MAGIC CLUSTER BY AUTO
+# MAGIC COMMENT 'Cumplimiento mensual de meta por vendedor (capa oro)'
+# MAGIC TBLPROPERTIES (
+# MAGIC     'capa' = 'oro'
+# MAGIC   , 'responsable' = 'equipo-datos'
+# MAGIC )
+# MAGIC AS
+# MAGIC WITH cte_por_mes AS (
+# MAGIC     SELECT id_vendedor
+# MAGIC          , DATE_TRUNC('MONTH', CAST(fecha_venta AS DATE)) AS mes
+# MAGIC          , SUM(cantidad * precio_unitario * (1 - COALESCE(descuento_pct, 0))) AS ventas_mes
+# MAGIC     FROM dev_practica_ui.bronze.ventas
+# MAGIC     WHERE estado = 'Completada' 
+# MAGIC       AND id_vendedor IS NOT NULL
+# MAGIC     GROUP BY ALL
+# MAGIC )
+# MAGIC SELECT v.nombre_vendedor
+# MAGIC      , v.sede
+# MAGIC      , CAST(pm.mes AS DATE) AS mes
+# MAGIC      , pm.ventas_mes
+# MAGIC      , v.meta_mensual
+# MAGIC      , ROUND(pm.ventas_mes / v.meta_mensual * 100, 1) AS cumplimiento_pct
+# MAGIC FROM cte_por_mes pm
+# MAGIC INNER JOIN dev_practica_ui.bronze.vendedores v 
+# MAGIC    ON pm.id_vendedor = v.id_vendedor;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- 8.3.2: Documentación de Metadatos en 'cumplimiento_metas'
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC ALTER TABLE dev_practica_ui.bronze.cumplimiento_metas ALTER COLUMN
+# MAGIC     nombre_vendedor  COMMENT 'Vendedor'
+# MAGIC   , sede             COMMENT 'Sede del vendedor'
+# MAGIC   , mes              COMMENT 'Primer día del mes'
+# MAGIC   , ventas_mes       COMMENT 'Ventas netas completadas del mes, en COP'
+# MAGIC   , meta_mensual     COMMENT 'Meta del mes, en COP'
+# MAGIC   , cumplimiento_pct COMMENT 'ventas_mes / meta_mensual x 100';
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- 8.3.3: Resumen anual de cumplimiento por vendedor
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT nombre_vendedor
+# MAGIC      , COUNT_IF(cumplimiento_pct >= 100) AS meses_con_meta
+# MAGIC      , ROUND(AVG(cumplimiento_pct), 1)   AS cumplimiento_promedio
+# MAGIC FROM dev_practica_ui.bronze.cumplimiento_metas
 # MAGIC GROUP BY nombre_vendedor
 # MAGIC ORDER BY meses_con_meta DESC;
 
@@ -1475,12 +2031,131 @@ print("Listo para graficar")
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.1: Ventas completadas de la primera semana de diciembre 2025
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT id_venta
+# MAGIC      , CAST(fecha_venta AS DATE) AS fecha_venta
+# MAGIC      , canal
+# MAGIC      , cantidad
+# MAGIC      , CAST(cantidad * precio_unitario * (1 - COALESCE(descuento_pct, 0)) AS DECIMAL(14,2)) AS valor_neto
+# MAGIC FROM dev_practica_ui.bronze.ventas
+# MAGIC WHERE CAST(fecha_venta AS DATE) BETWEEN '2025-12-01' AND '2025-12-07'
+# MAGIC AND estado = 'Completada'
+# MAGIC ORDER BY fecha_venta ASC, id_venta ASC;
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### Necesidad 2 · Varias condiciones a la vez
 # MAGIC *«Finanzas necesita las ventas en línea pagadas con tarjeta de crédito a 12 cuotas o más, del segundo semestre.»*
 # MAGIC Cuatro condiciones unidas con `AND`: todas deben cumplirse. `>=` significa «mayor o igual».
 # MAGIC
 # MAGIC **Qué esperar:** 107 ventas; la más grande, de 17,4 millones a 24 cuotas.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.2: Ventas en línea con tarjeta de crédito (12+ cuotas, 2º semestre)
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT id_venta
+# MAGIC      , CAST(fecha_venta AS DATE) AS fecha_venta
+# MAGIC      , pago.metodo               AS metodo_pago
+# MAGIC      , CAST(pago.cuotas AS INT)  AS cuotas
+# MAGIC      , CAST(cantidad * precio_unitario * (1 - COALESCE(descuento_pct, 0)) AS DECIMAL(14,2)) AS valor_neto
+# MAGIC FROM dev_practica_ui.bronze.ventas
+# MAGIC WHERE canal = 'En línea'
+# MAGIC AND pago.metodo = 'Tarjeta de crédito'
+# MAGIC AND pago.cuotas >= 12
+# MAGIC AND CAST(fecha_venta AS DATE) >= '2025-07-01'
+# MAGIC ORDER BY valor_neto DESC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.2: Distribución de valor neto en ventas a 12+ cuotas (Pandas + Matplotlib)
+# ============================================================================
+
+# 1. Convertir el resultado de la celda SQL anterior a DataFrame de Pandas
+pdf_92 = _sqldf.toPandas()
+
+# 2. Convertir valor_neto a float y llevar a Millones de COP (/ 1e6)
+pdf_92["valor_neto_millones"] = pdf_92["valor_neto"].astype(float) / 1e6
+
+# 3. Graficar un histograma o barras de distribución de las cuotas vs monto
+plt.figure(figsize=(10, 4))
+plt.scatter(pdf_92["cuotas"], pdf_92["valor_neto_millones"], color="crimson", alpha=0.6)
+plt.title("Ventas En Línea H2: Cuotas vs Valor Neto (Millones COP)")
+plt.xlabel("Número de Cuotas")
+plt.ylabel("Valor Neto (Millones COP)")
+plt.grid(True, linestyle="--", alpha=0.5)
+plt.show()
+
+print(f"Total de registros procesados para Finanzas: {len(pdf_92)} filas.")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.2: Agregado mensual de valor neto por cuotas (12 vs 24) en H2
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT date_format(CAST(fecha_venta AS DATE), 'yyyy-MM') AS periodo
+# MAGIC      , CAST(pago.cuotas AS INT)                          AS cuotas
+# MAGIC      , CAST(SUM(cantidad * precio_unitario * (1 - COALESCE(descuento_pct, 0))) AS DECIMAL(14,2)) AS valor_neto
+# MAGIC FROM dev_practica_ui.bronze.ventas
+# MAGIC WHERE canal = 'En línea'
+# MAGIC   AND pago.metodo = 'Tarjeta de crédito'
+# MAGIC   AND pago.cuotas IN (12, 24)
+# MAGIC   AND CAST(fecha_venta AS DATE) >= '2025-07-01'
+# MAGIC GROUP BY date_format(CAST(fecha_venta AS DATE), 'yyyy-MM')
+# MAGIC        , CAST(pago.cuotas AS INT)
+# MAGIC ORDER BY periodo ASC
+# MAGIC        , cuotas ASC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.2: Comparativo Mensual H2 - Ventas en Línea (12 vs 24 cuotas)
+# ============================================================================
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# 1. Cargar el resultado de la celda SQL (_sqldf)
+pdf_92 = _sqldf.toPandas()
+
+# 2. Convertir valor_neto a tipo numérico y pasar a Millones de COP
+pdf_92["valor_neto_millones"] = pdf_92["valor_neto"].astype(float) / 1e6
+
+# 3. Pivot para transformar las cuotas (12 y 24) en dos columnas distintas para cada mes
+df_pivot = pdf_92.pivot(index="periodo", columns="cuotas", values="valor_neto_millones").fillna(0)
+
+# 4. Graficar barras agrupadas lado a lado
+ax = df_pivot.plot(kind="bar", figsize=(10, 5), width=0.7, color=["#1f77b4", "#ff7f0e"])
+
+plt.title("Ventas En Línea H2: Comparativo por Mes (12 vs 24 Cuotas)")
+plt.xlabel("Periodo (Año-Mes)")
+plt.ylabel("Valor Neto Total (Millones COP)")
+plt.legend(title="Cuotas", labels=["12 Cuotas", "24 Cuotas"])
+plt.xticks(rotation=0)
+plt.grid(axis="y", linestyle="--", alpha=0.5)
+
+# Añadir etiquetas con los montos sobre cada barra para lectura ejecutiva
+for container in ax.containers:
+    ax.bar_label(container, fmt="%.1f M", padding=3, fontsize=8)
+
+plt.tight_layout()
+plt.show()
 
 # COMMAND ----------
 
@@ -1503,6 +2178,121 @@ print("Listo para graficar")
 # MAGIC - `NOT LIKE '%@correo.com'`: los correos que **no** terminan en `@correo.com` (el dominio personal genérico).
 # MAGIC
 # MAGIC **Qué esperar:** 2 productos (Escritorio en L y Lámpara LED de escritorio) y 5 empresas.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC describe dev_practica_ui.bronze.productos
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.3a: Búsqueda de productos relacionados a 'escritorio' (case-insensitive)
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT id_producto
+# MAGIC      , nombre_producto
+# MAGIC      , categoria
+# MAGIC      , CAST(costo_unitario AS DECIMAL(12,2)) AS precio_unitario
+# MAGIC FROM dev_practica_ui.bronze.productos
+# MAGIC WHERE nombre_producto ILIKE '%escritorio%'
+# MAGIC ORDER BY id_producto ASC;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.3b: Clientes con correo corporativo (excluyendo @correo.com)
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT id_cliente
+# MAGIC      , nombre_cliente
+# MAGIC      , email
+# MAGIC      , ciudad
+# MAGIC FROM dev_practica_ui.bronze.clientes
+# MAGIC WHERE email NOT LIKE '%@correo.com'
+# MAGIC ORDER BY id_cliente ASC;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.3: Conteo de clientes corporativos (excluye @correo.com) por Ciudad
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT ciudad
+# MAGIC      , COUNT(id_cliente) AS total_clientes
+# MAGIC      , COUNT(*) AS total_empresas
+# MAGIC FROM dev_practica_ui.bronze.clientes
+# MAGIC WHERE 1 = 1
+# MAGIC GROUP BY ciudad
+# MAGIC ORDER BY total_empresas DESC;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.3: Ventas Netas por Ciudad y Tipo de Cliente (Corporativo vs Personal)
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT c.ciudad
+# MAGIC      , CASE 
+# MAGIC             WHEN c.email NOT LIKE '%@correo.com' THEN 'Corporativo'
+# MAGIC             ELSE 'Personal'
+# MAGIC        END AS tipo_cliente
+# MAGIC      , CAST(SUM(v.cantidad * v.precio_unitario * (1 - COALESCE(v.descuento_pct, 0))) AS DECIMAL(14,2)) AS valor_neto
+# MAGIC FROM dev_practica_ui.bronze.ventas v
+# MAGIC INNER JOIN dev_practica_ui.bronze.clientes c
+# MAGIC    ON v.id_cliente = c.id_cliente
+# MAGIC WHERE v.estado = 'Completada'
+# MAGIC GROUP BY c.ciudad
+# MAGIC        , CASE 
+# MAGIC               WHEN c.email NOT LIKE '%@correo.com' THEN 'Corporativo'
+# MAGIC               ELSE 'Personal'
+# MAGIC          END
+# MAGIC ORDER BY c.ciudad ASC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.3: Distribución de Ventas Netas por Ciudad (Gráfico de Dona)
+# ============================================================================
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# 1. Cargar datos desde _sqldf y agrupar por ciudad en millones de COP
+pdf_93 = _sqldf.toPandas()
+pdf_93["valor_neto_m"] = pdf_93["valor_neto"].astype(float) / 1e6
+
+df_ciudad = pdf_93.groupby("ciudad")["valor_neto_m"].sum().reset_index()
+
+# 2. Configurar gráfico de dona
+plt.figure(figsize=(7, 7))
+colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+
+wedges, texts, autotexts = plt.pie(
+    df_ciudad["valor_neto_m"]
+  , labels=df_ciudad["ciudad"]
+  , autopct='%1.1f%%'
+  , startangle=140
+  , colors=colors[:len(df_ciudad)]
+  , wedgeprops=dict(width=0.4, edgecolor='white', linewidth=2)
+)
+
+plt.setp(autotexts, size=10, weight="bold", color="white")
+plt.title("Distribución del Valor Neto de Ventas por Ciudad", fontsize=14, weight="bold")
+
+plt.tight_layout()
+plt.show()
+
+print("¡Ahora sí tenemos la distribución real del volumen de dinero por ciudad!")
 
 # COMMAND ----------
 
@@ -1532,6 +2322,23 @@ print("Listo para graficar")
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.4: Análisis de datos faltantes (NULL) en 'descuento_pct' por canal
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT canal
+# MAGIC      , COUNT(*)                                            AS total_ventas
+# MAGIC      , COUNT_IF(descuento_pct IS NULL)                    AS ventas_sin_descuento
+# MAGIC      , ROUND(COUNT_IF(descuento_pct IS NULL) * 100.0 / COUNT(*), 1) AS pct_sin_descuento
+# MAGIC      , ROUND(AVG(COALESCE(descuento_pct, 0)) * 100, 2)    AS descuento_promedio_real_pct
+# MAGIC FROM dev_practica_ui.bronze.ventas
+# MAGIC GROUP BY canal
+# MAGIC ORDER BY pct_sin_descuento DESC;
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC SELECT canal,
 # MAGIC        count(*)                                                   AS ventas,
 # MAGIC        count_if(descuento_pct IS NULL)                            AS sin_descuento_registrado,
@@ -1551,6 +2358,30 @@ print("Listo para graficar")
 # MAGIC - Los prefijos `1 ·`, `2 ·`, `3 ·` sirven para que el `ORDER BY` ponga los tamaños en orden lógico.
 # MAGIC
 # MAGIC **Qué esperar:** 112 ventas grandes (6 %) suman 512 millones: **el 40 % del dinero**.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.5: Segmentación de ventas por tamaño de ticket (CASE)
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC WITH cte_ventas_calculadas AS (
+# MAGIC     SELECT (cantidad * precio_unitario * (1 - COALESCE(descuento_pct, 0))) AS valor_neto
+# MAGIC     FROM dev_practica_ui.bronze.ventas
+# MAGIC     WHERE estado = 'Completada'
+# MAGIC )
+# MAGIC SELECT CASE 
+# MAGIC             WHEN valor_neto >= 2000000 THEN '3 · Grande (2 M o más)'
+# MAGIC             WHEN valor_neto >=  500000 THEN '2 · Mediana (500 mil a 2 M)'
+# MAGIC             ELSE                            '1 · Pequeña (menos de 500 mil)'
+# MAGIC        END AS tamano_ticket
+# MAGIC      , COUNT(*) AS ventas
+# MAGIC      , CAST(SUM(valor_neto) AS DECIMAL(14,2)) AS ventas_netas
+# MAGIC FROM cte_ventas_calculadas
+# MAGIC GROUP BY ALL
+# MAGIC ORDER BY tamano_ticket ASC;
 
 # COMMAND ----------
 
@@ -1584,12 +2415,112 @@ plt.show()
 
 # COMMAND ----------
 
+# %python
+# ============================================================================
+# Gráfico 9.5: Ventas netas por tamaño de ticket (Pandas .plot)
+# ============================================================================
+
+import matplotlib.pyplot as plt
+
+# 1. Convertir resultado SQL (_sqldf) a DataFrame de Pandas
+pdf = _sqldf.toPandas()
+
+# 2. Convertir DECIMAL a float y pasar a millones de COP
+pdf["ventas_millones"] = pdf["ventas_netas"].astype(float) / 1e6
+
+# 3. Graficar directamente con pandas
+ax = pdf.plot(
+    kind="bar"
+  , x="tamano_ticket"
+  , y="ventas_millones"
+  , title="Ventas netas por tamaño de ticket (millones de COP)"
+  , legend=False
+  , rot=0
+  , color="#1f77b4"
+  , figsize=(10, 4)
+)
+
+# Etiquetas arriba de cada barra
+for p in ax.patches:
+    ax.annotate(f"${p.get_height():,.1f} M", (p.get_x() + p.get_width() / 2., p.get_height()),
+                ha='center', va='bottom', xytext=(0, 3), textcoords='offset points', weight='bold')
+
+plt.ylabel("Millones COP")
+plt.grid(axis="y", linestyle="--", alpha=0.5)
+plt.tight_layout()
+plt.show()
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### Necesidad 6 · Agrupar y resumir
 # MAGIC *«¿Qué canal de venta nos deja más dinero y cuál tiene el ticket promedio más alto?»*
 # MAGIC Varias agregaciones por canal en una sola consulta: número de ventas, unidades, dinero y ticket promedio (`avg`).
 # MAGIC
 # MAGIC **Qué esperar:** Tienda física 703,4 M · En línea 460,4 M · Teléfono 106,6 M.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.6: Ventas netas, unidades y ticket promedio por Canal
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC WITH cte_ventas_ok AS (
+# MAGIC     SELECT canal
+# MAGIC          , cantidad
+# MAGIC          , (cantidad * precio_unitario * (1 - COALESCE(descuento_pct, 0))) AS valor_neto
+# MAGIC     FROM dev_practica_ui.bronze.ventas
+# MAGIC     WHERE estado = 'Completada'
+# MAGIC )
+# MAGIC SELECT canal
+# MAGIC      , COUNT(*)                                AS ventas
+# MAGIC      , SUM(cantidad)                           AS unidades
+# MAGIC      , CAST(SUM(valor_neto) AS DECIMAL(14,2))  AS ventas_netas
+# MAGIC      , CAST(AVG(valor_neto) AS DECIMAL(12,2))  AS ticket_promedio
+# MAGIC FROM cte_ventas_ok
+# MAGIC GROUP BY canal
+# MAGIC ORDER BY ventas_netas DESC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.6: Ventas netas por canal en millones de COP (Pandas + Matplotlib)
+# ============================================================================
+
+import matplotlib.pyplot as plt
+
+# 1. Cargar datos de _sqldf
+pdf = _sqldf.toPandas()
+pdf["ventas_millones"] = pdf["ventas_netas"].astype(float) / 1e6
+
+# 2. Graficar barras
+plt.figure(figsize=(9, 4))
+ax = pdf.plot(
+    kind="bar"
+  , x="canal"
+  , y="ventas_millones"
+  , title="Ventas netas por canal (millones de COP)"
+  , legend=False
+  , rot=0
+  , color="#1f77b4"
+  , figsize=(9, 4)
+)
+
+# Colocar los valores numéricos sobre las barras
+for p in ax.patches:
+    ax.annotate(f"${p.get_height():,.1f} M", (p.get_x() + p.get_width() / 2., p.get_height()),
+                ha='center', va='bottom', xytext=(0, 3), textcoords='offset points', weight='bold')
+
+plt.ylabel("Millones COP")
+plt.xlabel("Canal de Venta")
+plt.grid(axis="y", linestyle="--", alpha=0.5)
+plt.tight_layout()
+plt.show()
+
+print("¡Resumen de canales generado con éxito!")
 
 # COMMAND ----------
 
@@ -1659,6 +2590,66 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.7: Evolución de ventas mes a mes durante 2025 (DATE_TRUNC)
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC WITH cte_ventas_2025 AS (
+# MAGIC     SELECT DATE_TRUNC('MONTH', CAST(fecha_venta AS DATE)) AS mes
+# MAGIC          , (cantidad * precio_unitario * (1 - COALESCE(descuento_pct, 0))) AS valor_neto
+# MAGIC     FROM dev_practica_ui.bronze.ventas
+# MAGIC     WHERE estado = 'Completada'
+# MAGIC       AND YEAR(CAST(fecha_venta AS DATE)) = 2025
+# MAGIC )
+# MAGIC SELECT CAST(mes AS DATE)                       AS mes
+# MAGIC      , COUNT(*)                                AS ventas
+# MAGIC      , CAST(SUM(valor_neto) AS DECIMAL(14,2))  AS ventas_netas
+# MAGIC FROM cte_ventas_2025
+# MAGIC GROUP BY ALL
+# MAGIC ORDER BY mes ASC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.7: Evolución mensual de ventas 2025 (Pandas + Matplotlib)
+# ============================================================================
+
+import matplotlib.pyplot as plt
+
+# 1. Cargar el resultado desde _sqldf
+pdf = _sqldf.toPandas()
+pdf["ventas_millones"] = pdf["ventas_netas"].astype(float) / 1e6
+pdf["mes_str"] = pdf["mes"].astype(str)
+
+# 2. Graficar tendencia en línea
+plt.figure(figsize=(10, 4))
+ax = pdf.plot(
+    kind="line"
+  , x="mes_str"
+  , y="ventas_millones"
+  , marker="o"
+  , color="#2ca02c"
+  , linewidth=2
+  , markersize=6
+  , title="Ventas netas por mes, 2025 (millones de COP)"
+  , legend=False
+  , figsize=(10, 4)
+)
+
+plt.ylabel("Millones COP")
+plt.xlabel("Mes")
+plt.xticks(rotation=45)
+plt.grid(True, linestyle="--", alpha=0.5)
+plt.tight_layout()
+plt.show()
+
+print("¡Evolución temporal procesada exitosamente!")
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC SELECT v.id_venta, v.fecha_venta,
 # MAGIC        c.nombre_completo AS cliente,
 # MAGIC        p.nombre_producto AS producto,
@@ -1681,6 +2672,80 @@ plt.show()
 # MAGIC - `utilidad` = valor neto − (cantidad × costo unitario).
 # MAGIC
 # MAGIC **Qué esperar:** `filas = 2238` (no se perdió ninguna venta gracias al `LEFT JOIN`).
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.8a: Recreación de Vista Enriquecida con IDs de dimensión
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC CREATE OR REPLACE VIEW dev_practica_ui.bronze.v_ventas_enriquecidas AS
+# MAGIC WITH cte_base AS (
+# MAGIC     SELECT v.id_venta
+# MAGIC          , CAST(v.fecha_venta AS DATE) AS fecha_venta
+# MAGIC          , v.id_cliente
+# MAGIC          , v.id_vendedor
+# MAGIC          , v.id_producto
+# MAGIC          , v.canal
+# MAGIC          , v.estado
+# MAGIC          , v.cantidad
+# MAGIC          , v.precio_unitario
+# MAGIC          , COALESCE(v.descuento_pct, 0) AS descuento_pct
+# MAGIC          , (v.cantidad * v.precio_unitario * (1 - COALESCE(v.descuento_pct, 0))) AS valor_neto
+# MAGIC          , v.pago.metodo AS metodo_pago
+# MAGIC          , v.pago.cuotas AS cuotas
+# MAGIC     FROM dev_practica_ui.bronze.ventas v
+# MAGIC )
+# MAGIC SELECT b.id_venta
+# MAGIC      , b.fecha_venta
+# MAGIC      , b.id_cliente
+# MAGIC      , b.id_vendedor
+# MAGIC      , b.id_producto
+# MAGIC      , b.canal
+# MAGIC      , b.estado
+# MAGIC      , b.cantidad
+# MAGIC      , b.precio_unitario
+# MAGIC      , b.descuento_pct
+# MAGIC      , CAST(b.valor_neto AS DECIMAL(14,2)) AS valor_neto
+# MAGIC      , b.metodo_pago
+# MAGIC      , b.cuotas
+# MAGIC      -- Datos del Cliente
+# MAGIC      , c.nombre_cliente
+# MAGIC      , c.email AS email_cliente
+# MAGIC      , c.ciudad AS ciudad_cliente
+# MAGIC      -- Datos del Vendedor
+# MAGIC      , vend.nombre_vendedor
+# MAGIC      , vend.sede AS sede_vendedor
+# MAGIC      -- Datos del Producto
+# MAGIC      , p.nombre_producto
+# MAGIC      , p.categoria AS categoria_producto
+# MAGIC      , p.costo_unitario
+# MAGIC      -- Cálculo de Utilidad
+# MAGIC      , CAST(b.valor_neto - (b.cantidad * p.costo_unitario) AS DECIMAL(14,2)) AS utilidad
+# MAGIC FROM cte_base b
+# MAGIC LEFT JOIN dev_practica_ui.bronze.clientes c
+# MAGIC        ON b.id_cliente = c.id_cliente
+# MAGIC LEFT JOIN dev_practica_ui.bronze.vendedores vend
+# MAGIC        ON b.id_vendedor = vend.id_vendedor
+# MAGIC LEFT JOIN dev_practica_ui.bronze.productos p
+# MAGIC        ON b.id_producto = p.id_producto;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from dev_practica_ui.bronze.v_ventas_enriquecidas;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.8b: Verificación de Integridad de Filas en la Vista
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT COUNT(*) AS total_filas_vista
+# MAGIC FROM dev_practica_ui.bronze.v_ventas_enriquecidas;
 
 # COMMAND ----------
 
@@ -1710,6 +2775,69 @@ plt.show()
 # MAGIC **Gráfico con dos series.** Si `y` recibe una **lista** de columnas (`y=["…", "…"]`), pandas dibuja dos barras por categoría y agrega la leyenda.
 # MAGIC
 # MAGIC **Qué esperar:** Tecnología vende más (595,7 M), pero Hogar tiene el mejor margen (37,5 %).
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.9: Ventas netas, utilidad y margen % por Categoría de Producto
+# MAGIC -- Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT categoria_producto                        AS categoria
+# MAGIC      , SUM(cantidad)                             AS unidades
+# MAGIC      , CAST(SUM(valor_neto) AS DECIMAL(14,2))    AS ventas_netas
+# MAGIC      , CAST(SUM(utilidad) AS DECIMAL(14,2))      AS utilidad
+# MAGIC      , ROUND(SUM(utilidad) / SUM(valor_neto) * 100, 1) AS margen_pct
+# MAGIC FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC WHERE estado = 'Completada'
+# MAGIC GROUP BY categoria_producto
+# MAGIC ORDER BY ventas_netas DESC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.9: Comparación de Ventas vs Utilidad por Categoría (Pandas .plot)
+# ============================================================================
+
+import matplotlib.pyplot as plt
+
+# 1. Cargar el resultado de la vista desde _sqldf
+pdf = _sqldf.toPandas()
+
+# 2. Convertir valores monetarios a Millones de COP
+pdf["ventas_millones"] = pdf["ventas_netas"].astype(float) / 1e6
+pdf["utilidad_millones"] = pdf["utilidad"].astype(float) / 1e6
+
+# 3. Graficar dos barras por categoría enviando la lista en 'y'
+ax = pdf.plot(
+    kind="bar"
+  , x="categoria"
+  , y=["ventas_millones", "utilidad_millones"]
+  , title="Ventas netas y Utilidad por Categoría (millones de COP)"
+  , rot=0
+  , color=["#1f77b4", "#2ca02c"]
+  , figsize=(10, 4)
+)
+
+# Ajustes de interfaz
+plt.ylabel("Millones COP")
+plt.xlabel("Categoría de Producto")
+plt.legend(["Ventas Netas", "Utilidad Netas"])
+plt.grid(axis="y", linestyle="--", alpha=0.5)
+
+# Añadir etiquetas con el valor arriba de cada barra
+for p in ax.patches:
+    height = p.get_height()
+    if height > 0:
+        ax.annotate(f"${height:,.1f} M", (p.get_x() + p.get_width() / 2., height),
+                    ha='center', va='bottom', xytext=(0, 3), textcoords='offset points', fontsize=8, weight='bold')
+
+plt.tight_layout()
+plt.show()
+
+print("¡Análisis de rentabilidad por categoría generado con éxito!")
 
 # COMMAND ----------
 
@@ -1750,6 +2878,128 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.10: Programa de Fidelización - Clientes VIP (Filtrando id_cliente)
+# MAGIC -- Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT id_cliente
+# MAGIC      , COUNT(*)                                AS total_compras
+# MAGIC      , CAST(SUM(valor_neto) AS DECIMAL(14,2))  AS ventas_netas
+# MAGIC FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC WHERE estado = 'Completada'
+# MAGIC   AND YEAR(fecha_venta) = 2025
+# MAGIC GROUP BY id_cliente
+# MAGIC HAVING SUM(valor_neto) > 35000000
+# MAGIC ORDER BY ventas_netas DESC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.10: Clientes VIP 2025 (Barras Horizontales Limpias)
+# ============================================================================
+
+import matplotlib.pyplot as plt
+
+# 1. Cargar datos desde _sqldf
+pdf = _sqldf.toPandas()
+pdf["ventas_millones"] = pdf["ventas_netas"].astype(float) / 1e6
+
+# 2. Invertir orden para que el top quede arriba
+pdf_inverted = pdf.iloc[::-1]
+
+# 3. Graficar barras horizontales
+plt.figure(figsize=(10, 5))
+ax = pdf_inverted.plot(
+    kind="barh"
+  , x="id_cliente"
+  , y="ventas_millones"
+  , title="Clientes VIP 2025: Compras Mayores a 35 Millones (COP)"
+  , legend=False
+  , color="#1f77b4"
+  , figsize=(10, 5)
+)
+
+# Etiquetas en millones sobre cada barra
+for p in ax.patches:
+    width = p.get_width()
+    ax.annotate(f"${width:,.1f} M", (width + 1, p.get_y() + p.get_height() / 2.),
+                ha='left', va='center', fontsize=9, weight='bold')
+
+plt.xlabel("Ventas Netas (Millones COP)")
+plt.ylabel("Cliente")
+plt.xlim(0, max(pdf["ventas_millones"]) * 1.15)
+plt.grid(axis="x", linestyle="--", alpha=0.5)
+plt.tight_layout()
+plt.show()
+
+print(f"Total de clientes VIP identificados: {len(pdf)}")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.10: Programa de Fidelización - Clientes con compras > 35M en 2025
+# MAGIC -- Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT nombre_cliente
+# MAGIC      , COUNT(*)                                AS total_compras
+# MAGIC      , CAST(SUM(valor_neto) AS DECIMAL(14,2))  AS ventas_netas
+# MAGIC FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC WHERE estado = 'Completada'
+# MAGIC   AND YEAR(fecha_venta) = 2025
+# MAGIC GROUP BY nombre_cliente
+# MAGIC HAVING SUM(valor_neto) > 35000000
+# MAGIC ORDER BY ventas_netas DESC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.10: Clientes VIP (Más de $35M) - Barras Horizontales con iloc[::-1]
+# ============================================================================
+
+import matplotlib.pyplot as plt
+
+# 1. Cargar el resultado de la consulta desde _sqldf
+pdf = _sqldf.toPandas()
+pdf["ventas_millones"] = pdf["ventas_netas"].astype(float) / 1e6
+
+# 2. Invertir el DataFrame para que el cliente con mayor compra quede arriba
+pdf_inverted = pdf.iloc[::-1]
+
+# 3. Graficar barras horizontales
+plt.figure(figsize=(10, 5))
+ax = pdf_inverted.plot(
+    kind="barh"
+  , x="nombre_cliente"
+  , y="ventas_millones"
+  , title="Clientes VIP 2025: Compras Mayores a 35 Millones (COP)"
+  , legend=False
+  , color="#1f77b4"
+  , figsize=(10, 5)
+)
+
+# Etiquetas directas en millones al final de cada barra
+for p in ax.patches:
+    width = p.get_width()
+    ax.annotate(f"${width:,.1f} M", (width + 2, p.get_y() + p.get_height() / 2.),
+                ha='left', va='center', fontsize=9, weight='bold')
+
+plt.xlabel("Ventas Netas (Millones COP)")
+plt.ylabel("Cliente")
+plt.xlim(0, max(pdf["ventas_millones"]) * 1.15)
+plt.grid(axis="x", linestyle="--", alpha=0.5)
+plt.tight_layout()
+plt.show()
+
+print(f"Total de clientes VIP identificados: {len(pdf)}")
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC SELECT cliente, segmento,
 # MAGIC        count(*)        AS compras,
 # MAGIC        sum(valor_neto) AS total_comprado
@@ -1780,16 +3030,42 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT p.id_producto, p.nombre_producto, p.categoria, p.activo
-# MAGIC FROM productos p
-# MAGIC LEFT ANTI JOIN ventas v ON p.id_producto = v.id_producto;   -- productos SIN ventas
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.11a: Productos que NUNCA han registrado ventas
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT p.id_producto
+# MAGIC      , p.nombre_producto
+# MAGIC      , p.categoria
+# MAGIC      , p.activo
+# MAGIC FROM dev_practica_ui.bronze.productos p
+# MAGIC LEFT ANTI JOIN dev_practica_ui.bronze.ventas v
+# MAGIC             ON p.id_producto = v.id_producto
+# MAGIC ORDER BY p.id_producto ASC;
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT c.id_cliente, c.nombre_completo, c.fecha_registro
-# MAGIC FROM clientes c
-# MAGIC LEFT ANTI JOIN ventas v ON c.id_cliente = v.id_cliente;     -- clientes SIN compras
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.11b: Clientes que AÚN NO han realizado compras
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT c.id_cliente
+# MAGIC      , c.nombre_cliente
+# MAGIC      , c.email
+# MAGIC      , c.ciudad
+# MAGIC FROM dev_practica_ui.bronze.clientes c
+# MAGIC LEFT ANTI JOIN dev_practica_ui.bronze.ventas v ON c.id_cliente = v.id_cliente
+# MAGIC ORDER BY c.id_cliente ASC;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT p.id_producto, p.nombre_producto, p.categoria, p.activo
+# MAGIC FROM productos p
+# MAGIC LEFT ANTI JOIN ventas v ON p.id_producto = v.id_producto;   -- productos SIN ventas
 
 # COMMAND ----------
 
@@ -1803,6 +3079,67 @@ plt.show()
 # MAGIC - `sum(sum(valor_neto)) OVER ()`: `OVER ()` vacío = **todas** las filas; da el total general para calcular el porcentaje de cada vendedor.
 # MAGIC
 # MAGIC **Qué esperar:** 1.º Carolina Méndez (125,9 M, 15,5 %) … 8.º Ricardo Pabón (49,4 M, 6,1 %).
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.12: Ranking anual de vendedores y % de participación (Window Functions)
+# MAGIC -- Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT nombre_vendedor
+# MAGIC      , sede_vendedor                                                                                AS sede
+# MAGIC      , CAST(SUM(valor_neto) AS DECIMAL(14,2))                                                      AS ventas_netas
+# MAGIC      , RANK() OVER (ORDER BY SUM(valor_neto) DESC)                                                  AS puesto
+# MAGIC      , ROUND(SUM(valor_neto) / SUM(SUM(valor_neto)) OVER () * 100, 1)                              AS participacion_pct
+# MAGIC FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC WHERE estado = 'Completada' AND nombre_vendedor IS NOT NULL
+# MAGIC GROUP BY nombre_vendedor, sede_vendedor
+# MAGIC ORDER BY puesto ASC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.12: Ranking de Vendedores 2025 (Barras Horizontales)
+# ============================================================================
+
+import matplotlib.pyplot as plt
+
+# 1. Cargar el resultado desde _sqldf
+pdf = _sqldf.toPandas()
+pdf["ventas_millones"] = pdf["ventas_netas"].astype(float) / 1e6
+
+# 2. Invertir las filas para que el puesto #1 quede arriba
+pdf_inverted = pdf.iloc[::-1]
+
+# 3. Graficar barras horizontales
+plt.figure(figsize=(10, 5))
+ax = pdf_inverted.plot(
+    kind="barh"
+  , x="nombre_vendedor"
+  , y="ventas_millones"
+  , title="Ranking de vendedores 2025 (millones de COP)"
+  , legend=False
+  , color="#1f77b4"
+  , figsize=(10, 5)
+)
+
+# Colocar los valores numéricos y el % al final de cada barra
+for p in ax.patches:
+    width = p.get_width()
+    ax.annotate(f"${width:,.1f} M", (width + 1, p.get_y() + p.get_height() / 2.),
+                ha='left', va='center', fontsize=9, weight='bold')
+
+plt.xlabel("Ventas Netas (Millones COP)")
+plt.ylabel("Vendedor")
+plt.xlim(0, max(pdf["ventas_millones"]) * 1.15)
+plt.grid(axis="x", linestyle="--", alpha=0.5)
+plt.tight_layout()
+plt.show()
+
+print("¡Ranking de fuerza de ventas completado exitosamente!")
 
 # COMMAND ----------
 
@@ -1839,6 +3176,33 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.13: Mejor vendedor de cada mes en 2025 (QUALIFY + ROW_NUMBER)
+# MAGIC -- Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC WITH cte_ventas_mensuales AS (
+# MAGIC     SELECT DATE_TRUNC('MONTH', fecha_venta)            AS mes
+# MAGIC          , nombre_vendedor
+# MAGIC          , sede_vendedor                               AS sede
+# MAGIC          , CAST(SUM(valor_neto) AS DECIMAL(14,2))     AS ventas_mes
+# MAGIC     FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC     WHERE estado = 'Completada'
+# MAGIC       AND nombre_vendedor IS NOT NULL
+# MAGIC       AND YEAR(fecha_venta) = 2025
+# MAGIC     GROUP BY DATE_TRUNC('MONTH', fecha_venta), nombre_vendedor, sede_vendedor
+# MAGIC )
+# MAGIC SELECT CAST(mes AS DATE) AS mes
+# MAGIC      , nombre_vendedor
+# MAGIC      , sede
+# MAGIC      , ventas_mes
+# MAGIC FROM cte_ventas_mensuales
+# MAGIC QUALIFY ROW_NUMBER() OVER (PARTITION BY mes ORDER BY ventas_mes DESC) = 1
+# MAGIC ORDER BY mes ASC;
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC SELECT mes, nombre_vendedor, sede, ventas_mes, cumplimiento_pct
 # MAGIC FROM cumplimiento_metas
 # MAGIC QUALIFY row_number() OVER (PARTITION BY mes ORDER BY ventas_mes DESC) = 1   -- el n.º 1 de cada mes
@@ -1854,6 +3218,70 @@ plt.show()
 # MAGIC - `variacion_pct` = (mes actual ÷ mes anterior − 1) × 100. Positivo = creció; negativo = cayó.
 # MAGIC
 # MAGIC **Qué esperar:** mayor alza en marzo (+56,5 %), mayor caída en junio (−32,8 %).
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.14: Crecimiento MoM vs Mes Anterior (LAG Window Function)
+# MAGIC -- Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC WITH cte_ventas_mensuales AS (
+# MAGIC     SELECT DATE_TRUNC('MONTH', fecha_venta)            AS mes
+# MAGIC          , CAST(SUM(valor_neto) AS DECIMAL(14,2))     AS ventas_netas
+# MAGIC     FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC     WHERE estado = 'Completada'
+# MAGIC       AND YEAR(fecha_venta) = 2025
+# MAGIC     GROUP BY DATE_TRUNC('MONTH', fecha_venta)
+# MAGIC )
+# MAGIC SELECT CAST(mes AS DATE)                                                                           AS mes
+# MAGIC      , ventas_netas
+# MAGIC      , LAG(ventas_netas) OVER (ORDER BY mes ASC)                                                   AS mes_anterior
+# MAGIC      , ROUND((ventas_netas / LAG(ventas_netas) OVER (ORDER BY mes ASC) - 1) * 100, 1)              AS variacion_pct
+# MAGIC FROM cte_ventas_mensuales
+# MAGIC ORDER BY mes ASC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.14: Variación Porcentual Mensual MoM (Pandas + Matplotlib)
+# ============================================================================
+
+import matplotlib.pyplot as plt
+
+# 1. Cargar datos de _sqldf
+pdf = _sqldf.toPandas()
+pdf["variacion_pct"] = pdf["variacion_pct"].fillna(0).astype(float)
+pdf["mes_str"] = pdf["mes"].astype(str)
+
+# 2. Definir colores: Verde para crecimiento (>0), Rojo para caída (<0)
+colors = ['#2ca02c' if val >= 0 else '#d62728' for val in pdf["variacion_pct"]]
+
+# 3. Graficar barras verticales
+plt.figure(figsize=(10, 4))
+ax = plt.bar(pdf["mes_str"], pdf["variacion_pct"], color=colors, width=0.6)
+
+plt.axhline(0, color='black', linewidth=0.8, linestyle='--')
+plt.title("Variación Porcentual de Ventas Frente al Mes Anterior (MoM 2025)", fontsize=12, weight="bold")
+plt.xlabel("Mes")
+plt.ylabel("Variación (%)")
+plt.xticks(rotation=45)
+plt.grid(axis="y", linestyle="--", alpha=0.5)
+
+# Etiquetas numéricas sobre/debajo de cada barra
+for p in ax:
+    height = p.get_height()
+    va = 'bottom' if height >= 0 else 'top'
+    y_pos = height + (1 if height >= 0 else -3)
+    plt.annotate(f"{height:+.1f}%", (p.get_x() + p.get_width() / 2., y_pos),
+                 ha='center', va=va, fontsize=8, weight='bold')
+
+plt.tight_layout()
+plt.show()
+
+print("¡Análisis de variaciones mensuales MoM completado exitosamente!")
 
 # COMMAND ----------
 
@@ -1876,6 +3304,51 @@ plt.show()
 
 # COMMAND ----------
 
+# %python
+# ============================================================================
+# Gráfico 9.14 (Estándar Exigido): Variación de ventas frente al mes anterior (%)
+# ============================================================================
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# 1. Cargar el resultado SQL y eliminar enero (.dropna() quita el registro sin mes anterior)
+pdf = _sqldf.toPandas().dropna()
+
+# 2. Convertir variación a float y dar formato a fecha (%Y-%m)
+pdf["variacion_pct"] = pdf["variacion_pct"].astype(float)
+pdf["mes"] = pd.to_datetime(pdf["mes"]).dt.strftime("%Y-%m")
+
+# 3. Graficar con Pandas .plot()
+ax = pdf.plot(
+    kind="bar"
+  , x="mes"
+  , y="variacion_pct"
+  , title="Variación de ventas frente al mes anterior (%)"
+  , legend=False
+  , rot=45
+  , figsize=(10, 4)
+  , color="#1f77b4"
+)
+
+plt.axhline(0, color='black', linewidth=0.8, linestyle='--')
+plt.ylabel("Variación (%)")
+plt.xlabel("Mes")
+plt.grid(axis="y", linestyle="--", alpha=0.5)
+
+# Añadir las etiquetas numéricas directo sobre las barras
+for p in ax.patches:
+    height = p.get_height()
+    va = 'bottom' if height >= 0 else 'top'
+    y_pos = height + (1 if height >= 0 else -3)
+    ax.annotate(f"{height:+.1f}%", (p.get_x() + p.get_width() / 2., y_pos),
+                ha='center', va=va, fontsize=8, weight='bold')
+
+plt.tight_layout()
+plt.show()
+
+# COMMAND ----------
+
 pdf = _sqldf.toPandas().dropna()                                # quitar enero (sin mes anterior)
 pdf["variacion_pct"] = pdf["variacion_pct"].astype(float)
 pdf["mes"] = pd.to_datetime(pdf["mes"]).dt.strftime("%Y-%m")    # etiqueta corta: 2025-02, 2025-03…
@@ -1894,6 +3367,76 @@ plt.show()
 # MAGIC - `1000000000 AS meta_anual`: un valor fijo en todas las filas, para dibujar la meta como una línea.
 # MAGIC
 # MAGIC **Qué esperar:** el acumulado supera la meta en **noviembre** (1.084 M) y cierra el año en 1.270 M.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.15: Cálculo de Acumulado Anual (Running Total) vs Meta de 1.000M
+# MAGIC -- Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC WITH cte_mensual AS (
+# MAGIC     SELECT DATE_TRUNC('MONTH', fecha_venta)            AS mes
+# MAGIC          , CAST(SUM(valor_neto) AS DECIMAL(14,2))     AS ventas_netas
+# MAGIC     FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC     WHERE estado = 'Completada'
+# MAGIC       AND YEAR(fecha_venta) = 2025
+# MAGIC     GROUP BY DATE_TRUNC('MONTH', fecha_venta)
+# MAGIC )
+# MAGIC SELECT CAST(mes AS DATE)                                                                            AS mes
+# MAGIC      , ventas_netas
+# MAGIC      , SUM(ventas_netas) OVER (ORDER BY mes ASC 
+# MAGIC                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)                    AS acumulado
+# MAGIC      , 1000000000                                                                                   AS meta_anual
+# MAGIC FROM cte_mensual
+# MAGIC ORDER BY mes ASC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.15: Ventas acumuladas 2025 frente a la meta anual (millones COP)
+# ============================================================================
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# 1. Cargar datos de _sqldf y convertir a millones de COP
+pdf = _sqldf.toPandas()
+pdf["mes"] = pd.to_datetime(pdf["mes"]).dt.strftime("%Y-%m")
+pdf["Acumulado"]  = pdf["acumulado"].astype(float) / 1e6
+pdf["Meta anual"] = pdf["meta_anual"].astype(float) / 1e6
+
+# 2. Graficar dos líneas (Acumulado vs Meta Anual)
+ax = pdf.plot(
+    kind="line"
+  , x="mes"
+  , y=["Acumulado", "Meta anual"]
+  , marker="o"
+  , title="Ventas acumuladas 2025 frente a la meta anual (millones de COP)"
+  , figsize=(10, 4)
+  , style={"Acumulado": "-o", "Meta anual": "--r"}
+)
+
+plt.ylabel("Millones COP")
+plt.xlabel("Mes")
+plt.xticks(rotation=45)
+plt.grid(True, linestyle="--", alpha=0.5)
+
+# Resaltar punto de cruce en noviembre ($1,084 M)
+for i, row in pdf.iterrows():
+    if row["Acumulado"] >= row["Meta anual"] and pdf.iloc[i-1]["Acumulado"] < row["Meta anual"]:
+        ax.annotate(f"¡Meta superada!\n${row['Acumulado']:,.1f} M", 
+                    (i, row["Acumulado"]),
+                    xytext=(i-0.5, row["Acumulado"] + 80),
+                    arrowprops=dict(facecolor='black', shrink=0.05, width=1, headwidth=6),
+                    fontsize=8, weight='bold', ha='center')
+
+plt.tight_layout()
+plt.show()
+
+print("¡Análisis de acumulado anual completado exitosamente!")
 
 # COMMAND ----------
 
@@ -1932,6 +3475,62 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.16: Tasa de devolución por categoría (Indicador de Calidad)
+# MAGIC -- Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT categoria_producto                                                     AS categoria
+# MAGIC      , COUNT(*)                                                               AS ventas_totales
+# MAGIC      , COUNT_IF(estado = 'Devuelta')                                          AS devueltas
+# MAGIC      , ROUND(COUNT_IF(estado = 'Devuelta') * 100.0 / COUNT(*), 1)             AS tasa_devolucion_pct
+# MAGIC FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC GROUP BY categoria_producto
+# MAGIC ORDER BY tasa_devolucion_pct DESC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.16: Tasa de devolución por categoría (%)
+# ============================================================================
+
+import matplotlib.pyplot as plt
+
+# 1. Cargar el resultado desde _sqldf
+pdf = _sqldf.toPandas()
+pdf["tasa_devolucion_pct"] = pdf["tasa_devolucion_pct"].astype(float)
+
+# 2. Graficar con Pandas .plot()
+ax = pdf.plot(
+    kind="bar"
+  , x="categoria"
+  , y="tasa_devolucion_pct"
+  , title="Tasa de devolución por categoría (%)"
+  , legend=False
+  , rot=0
+  , color="#d62728"
+  , figsize=(9, 4)
+)
+
+# Colocar porcentajes arriba de cada barra
+for p in ax.patches:
+    height = p.get_height()
+    ax.annotate(f"{height:.1f}%", (p.get_x() + p.get_width() / 2., height),
+                ha='center', va='bottom', xytext=(0, 3), textcoords='offset points', weight='bold')
+
+plt.ylabel("Tasa de Devolución (%)")
+plt.xlabel("Categoría")
+plt.ylim(0, max(pdf["tasa_devolucion_pct"]) * 1.25)
+plt.grid(axis="y", linestyle="--", alpha=0.5)
+plt.tight_layout()
+plt.show()
+
+print("¡Análisis de calidad y devoluciones completado exitosamente!")
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC SELECT categoria,
 # MAGIC        count(*)                                                 AS ventas,
 # MAGIC        count_if(estado = 'Devuelta')                            AS devueltas,
@@ -1965,6 +3564,53 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.17: Distribución de ingresos por Método de Pago
+# MAGIC -- Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT metodo_pago
+# MAGIC      , COUNT(*)                                AS ventas
+# MAGIC      , CAST(SUM(valor_neto) AS DECIMAL(14,2))  AS ventas_netas
+# MAGIC FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC WHERE estado = 'Completada'
+# MAGIC GROUP BY metodo_pago
+# MAGIC ORDER BY ventas_netas DESC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.17: Participación por método de pago (Pandas .plot)
+# ============================================================================
+
+import matplotlib.pyplot as plt
+
+# 1. Cargar el resultado de _sqldf
+pdf = _sqldf.toPandas()
+pdf["ventas_millones"] = pdf["ventas_netas"].astype(float) / 1e6
+
+# 2. Graficar torta exactamente con el estándar solicitado
+pdf.plot(
+    kind="pie"
+  , y="ventas_millones"
+  , labels=pdf["metodo_pago"]
+  , autopct="%1.1f%%"
+  , title="Participación por método de pago"
+  , legend=False
+  , ylabel=""
+  , figsize=(6, 6)
+  , startangle=140
+)
+
+plt.tight_layout()
+plt.show()
+
+print("¡Módulo 9 completado en su totalidad con éxito!")
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC SELECT metodo_pago, count(*) AS ventas, sum(valor_neto) AS ventas_netas
 # MAGIC FROM ventas
 # MAGIC WHERE estado = 'Completada'
@@ -1990,6 +3636,62 @@ plt.show()
 # MAGIC - `GROUP BY ALL`: agrupa por el número y el nombre del día.
 # MAGIC
 # MAGIC **Qué esperar:** 7 filas, de domingo a sábado, con las ventas en tienda física de todo el año.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 9.18: Análisis de frecuencia de ventas por día de la semana (Tienda física)
+# MAGIC -- Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT DAYOFWEEK(fecha_venta)                                                                    AS num_dia
+# MAGIC      , ELEMENT_AT(ARRAY('Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'), DAYOFWEEK(fecha_venta)) AS dia
+# MAGIC      , COUNT(*)                                                                                  AS ventas
+# MAGIC FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC WHERE canal = 'Tienda física'
+# MAGIC   AND estado = 'Completada'
+# MAGIC GROUP BY ALL
+# MAGIC ORDER BY num_dia ASC;
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# Gráfico 9.18: Ventas en tienda física por día de la semana (Pandas .plot)
+# ============================================================================
+
+import matplotlib.pyplot as plt
+
+# 1. Cargar el resultado desde _sqldf
+pdf = _sqldf.toPandas()
+
+# 2. Graficar barras verticales
+ax = pdf.plot(
+    kind="bar"
+  , x="dia"
+  , y="ventas"
+  , title="Ventas en tienda física por día de la semana (2025)"
+  , legend=False
+  , rot=0
+  , color="#1f77b4"
+  , figsize=(9, 4)
+)
+
+# Colocar el total de ventas sobre cada barra
+for p in ax.patches:
+    height = p.get_height()
+    ax.annotate(f"{int(height)}", (p.get_x() + p.get_width() / 2., height),
+                ha='center', va='bottom', xytext=(0, 3), textcoords='offset points', weight='bold')
+
+plt.ylabel("Número de Ventas")
+plt.xlabel("Día de la Semana")
+plt.ylim(0, max(pdf["ventas"]) * 1.15)
+plt.grid(axis="y", linestyle="--", alpha=0.5)
+plt.tight_layout()
+plt.show()
+
+print("¡Análisis operacional de tienda física completado exitosamente!")
 
 # COMMAND ----------
 
@@ -2022,6 +3724,71 @@ plt.show()
 # MAGIC - `fig.suptitle(…)`: título general · `plt.tight_layout()`: acomoda los espacios para que no se encimen.
 # MAGIC
 # MAGIC También puedes usar las visualizaciones integradas, sin código: en cualquier resultado SQL pulsa **+ › Visualization** o **+ › Data Profile**.
+
+# COMMAND ----------
+
+# %python
+# ============================================================================
+# SECCIÓN 10: Tablero de ventas 2025 (Plantilla del Curso)
+# Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# ============================================================================
+
+import matplotlib.pyplot as plt
+
+# 1. Una consulta por gráfico (los montos se dividen entre 1e6 directamente en SQL)
+mensual = spark.sql("""
+    SELECT DATE_TRUNC('MONTH', fecha_venta) AS mes
+         , SUM(valor_neto) / 1e6            AS millones
+    FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+    WHERE estado = 'Completada'
+    GROUP BY ALL
+    ORDER BY mes
+""").toPandas()
+
+categorias = spark.sql("""
+    SELECT categoria_producto   AS categoria
+         , SUM(utilidad) / 1e6  AS millones
+    FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+    WHERE estado = 'Completada'
+    GROUP BY ALL
+    ORDER BY millones DESC
+""").toPandas()
+
+ciudades = spark.sql("""
+    SELECT ciudad_cliente
+         , SUM(valor_neto) / 1e6 AS millones
+    FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+    WHERE estado = 'Completada'
+      AND ciudad_cliente IS NOT NULL
+    GROUP BY ALL
+    ORDER BY millones ASC
+""").toPandas()
+
+metas = spark.sql("""
+    SELECT nombre_vendedor
+         , COUNT(*) AS meses
+    FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+    WHERE estado = 'Completada'
+      AND nombre_vendedor IS NOT NULL
+    GROUP BY ALL
+    ORDER BY meses ASC
+""").toPandas()
+
+# 2. DECIMAL -> número
+for tabla in (mensual, categorias, ciudades):
+    tabla["millones"] = tabla["millones"].astype(float)
+
+# 3. Figura con 2 x 2 espacios; cada gráfico va en su espacio con ax=
+fig, ejes = plt.subplots(2, 2, figsize=(14, 8))
+
+mensual.plot(kind="line", x="mes", y="millones", marker="o", legend=False, ax=ejes[0, 0], title="Ventas netas por mes (M COP)")
+categorias.plot(kind="bar", x="categoria", y="millones", legend=False, rot=0, ax=ejes[0, 1], title="Utilidad por categoría (M COP)")
+ciudades.plot(kind="barh", x="ciudad_cliente", y="millones", legend=False, ax=ejes[1, 0], title="Ventas por ciudad del cliente (M COP)")
+metas.plot(kind="barh", x="nombre_vendedor", y="meses", legend=False, ax=ejes[1, 1], title="Ventas por vendedor")
+
+fig.suptitle("Comercializadora Andina · Tablero de ventas 2025", fontsize=16, fontweight="bold")
+plt.tight_layout()
+plt.show()
 
 # COMMAND ----------
 
@@ -2070,6 +3837,111 @@ plt.show()
 # MAGIC
 # MAGIC **Limpieza (opcional):** si quieres borrar todo lo de esta clase, quita los `--` de las dos primeras líneas de la celda siguiente y ejecútala.
 # MAGIC `CASCADE` borra el catálogo o el schema con todo su contenido. Las tablas gestionadas se pueden recuperar durante 7 días con `UNDROP`.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- RETO 1: Producto más vendido en unidades por categoría
+# MAGIC -- Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC WITH cte_unidades_producto AS (
+# MAGIC     SELECT categoria_producto                        AS categoria
+# MAGIC          , nombre_producto
+# MAGIC          , SUM(cantidad)                             AS unidades_vendidas
+# MAGIC          , CAST(SUM(valor_neto) AS DECIMAL(14,2))    AS ventas_netas
+# MAGIC     FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC     WHERE estado = 'Completada'
+# MAGIC     GROUP BY categoria_producto
+# MAGIC            , nombre_producto
+# MAGIC )
+# MAGIC SELECT categoria
+# MAGIC      , nombre_producto
+# MAGIC      , unidades_vendidas
+# MAGIC      , ventas_netas
+# MAGIC FROM cte_unidades_producto
+# MAGIC QUALIFY ROW_NUMBER() OVER (PARTITION BY categoria ORDER BY unidades_vendidas DESC) = 1
+# MAGIC ORDER BY unidades_vendidas DESC;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- RETO 2: Ticket promedio por ciudad en canal 'En línea'
+# MAGIC -- Vista: dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC SELECT ciudad_cliente                                      AS ciudad
+# MAGIC      , COUNT(*)                                            AS ventas
+# MAGIC      , CAST(AVG(valor_neto) AS DECIMAL(12,2))              AS ticket_promedio
+# MAGIC FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC WHERE canal = 'En línea'
+# MAGIC   AND estado = 'Completada'
+# MAGIC   AND ciudad_cliente IS NOT NULL
+# MAGIC GROUP BY ciudad_cliente
+# MAGIC ORDER BY ticket_promedio DESC;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- RETO 3a: Crear Tabla Gold agregada por Ciudad y Mes (CTAS)
+# MAGIC -- Catálogo: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC CREATE OR REPLACE TABLE dev_practica_ui.bronze.ventas_por_ciudad_mes
+# MAGIC CLUSTER BY AUTO
+# MAGIC COMMENT 'Tabla Gold agregada de ventas netas y tickets promedio por ciudad y mes'
+# MAGIC TBLPROPERTIES (
+# MAGIC     'delta.appendOnly' = 'false',
+# MAGIC     'capa' = 'Gold'
+# MAGIC ) AS
+# MAGIC SELECT ciudad_cliente                                      AS ciudad
+# MAGIC      , DATE_TRUNC('MONTH', fecha_venta)                    AS mes
+# MAGIC      , COUNT(*)                                            AS total_ventas
+# MAGIC      , SUM(cantidad)                                       AS total_unidades
+# MAGIC      , CAST(SUM(valor_neto) AS DECIMAL(14,2))              AS ventas_netas
+# MAGIC      , CAST(AVG(valor_neto) AS DECIMAL(12,2))              AS ticket_promedio
+# MAGIC FROM dev_practica_ui.bronze.v_ventas_enriquecidas
+# MAGIC WHERE estado = 'Completada'
+# MAGIC   AND ciudad_cliente IS NOT NULL
+# MAGIC GROUP BY ALL;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- RETO 3b: Agregar comentarios y documentación semántica a cada columna
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas_por_ciudad_mes ALTER COLUMN ciudad COMMENT 'Ciudad de residencia registrada del cliente';
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas_por_ciudad_mes ALTER COLUMN mes COMMENT 'Primer día del mes de la transacción (DATE_TRUNC)';
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas_por_ciudad_mes ALTER COLUMN total_ventas COMMENT 'Cantidad total de transacciones completadas';
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas_por_ciudad_mes ALTER COLUMN total_unidades COMMENT 'Suma total de unidades vendidas en el periodo';
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas_por_ciudad_mes ALTER COLUMN ventas_netas COMMENT 'Monto total en COP aplicando descuentos';
+# MAGIC ALTER TABLE dev_practica_ui.bronze.ventas_por_ciudad_mes ALTER COLUMN ticket_promedio COMMENT 'Promedio por transacción en COP';
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- RETO 4a: Actualizar estado de la venta 100010 a 'Devuelta'
+# MAGIC -- Tabla: dev_practica_ui.bronze.ventas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC UPDATE dev_practica_ui.bronze.ventas
+# MAGIC SET estado = 'Devuelta'
+# MAGIC WHERE id_venta = 100010;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ============================================================================
+# MAGIC -- RETO 4b: Consultar el historial Delta Time Travel de la tabla ventas
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC DESCRIBE HISTORY dev_practica_ui.bronze.ventas;
 
 # COMMAND ----------
 
