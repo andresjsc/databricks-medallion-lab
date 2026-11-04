@@ -119,20 +119,58 @@ print("Versión de Apache Spark:", spark.version)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC CREATE OR REPLACE TABLE workspace.practica_ui.productos_ui (
-# MAGIC   -- columna        tipo          ¿obligatoria?  descripción
-# MAGIC   id_producto     INT           NOT NULL COMMENT 'Identificador único del producto',
-# MAGIC   nombre_producto STRING        NOT NULL COMMENT 'Nombre comercial del producto',
-# MAGIC   categoria       STRING                 COMMENT 'Tecnología, Hogar, Oficina o Deportes',
-# MAGIC   marca           STRING                 COMMENT 'Marca del producto',
-# MAGIC   precio_lista    DECIMAL(12,2)          COMMENT 'Precio de venta sugerido, en COP',
-# MAGIC   costo_unitario  DECIMAL(12,2)          COMMENT 'Costo de compra por unidad, en COP',
-# MAGIC   activo          BOOLEAN                COMMENT 'TRUE si el producto se sigue vendiendo',
-# MAGIC   CONSTRAINT pk_productos_ui PRIMARY KEY (id_producto)          -- clave primaria
+# MAGIC -- 1. Ingesta y Tipado Directo (RTAS limpio sin paréntesis de esquema)
+# MAGIC CREATE OR REPLACE TABLE dev_practica_ui.bronze.productos
+# MAGIC CLUSTER BY AUTO
+# MAGIC COMMENT 'Productos de práctica (sección 2). Origen: productos.csv'
+# MAGIC TBLPROPERTIES (
+# MAGIC     'capa' = 'bronze'
+# MAGIC     ,'origen' = '/Volumes/dev_practica_ui/raw/archivos_ui/productos.csv'
 # MAGIC )
-# MAGIC CLUSTER BY AUTO                                                 -- organización automática de los datos
-# MAGIC COMMENT 'Productos de práctica (sección 2). Origen: productos.csv' -- descripción de la tabla
-# MAGIC TBLPROPERTIES ('capa' = 'practica', 'origen' = 'productos.csv');  -- metadatos propios
+# MAGIC AS 
+# MAGIC SELECT 
+# MAGIC     CAST(id_producto AS INT)                    AS id_producto
+# MAGIC     ,CAST(nombre_producto AS STRING)            AS nombre_producto
+# MAGIC     ,CAST(categoria AS STRING)                  AS categoria
+# MAGIC     ,CAST(marca AS STRING)                      AS marca
+# MAGIC     ,CAST(precio_lista AS DECIMAL(12,2))        AS precio_lista
+# MAGIC     ,CAST(costo_unitario AS DECIMAL(12,2))      AS costo_unitario
+# MAGIC     ,CASE 
+# MAGIC         WHEN lower(trim(activo)) IN ('sí', 'si', 'true', '1') THEN TRUE 
+# MAGIC         ELSE FALSE 
+# MAGIC      END                                        AS activo
+# MAGIC FROM read_files(
+# MAGIC     '/Volumes/dev_practica_ui/raw/archivos_ui/productos.csv'
+# MAGIC     ,format => 'csv'
+# MAGIC     ,header => true
+# MAGIC );
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- 2. Documentación y Metadatos por Columna
+# MAGIC ALTER TABLE dev_practica_ui.bronze.productos ALTER COLUMN id_producto COMMENT 'Identificador único del producto';
+# MAGIC ALTER TABLE dev_practica_ui.bronze.productos ALTER COLUMN nombre_producto COMMENT 'Nombre comercial del producto';
+# MAGIC ALTER TABLE dev_practica_ui.bronze.productos ALTER COLUMN categoria COMMENT 'Tecnología, Hogar, Oficina o Deportes';
+# MAGIC ALTER TABLE dev_practica_ui.bronze.productos ALTER COLUMN marca COMMENT 'Marca del producto';
+# MAGIC ALTER TABLE dev_practica_ui.bronze.productos ALTER COLUMN precio_lista COMMENT 'Precio de venta sugerido, en COP';
+# MAGIC ALTER TABLE dev_practica_ui.bronze.productos ALTER COLUMN costo_unitario COMMENT 'Costo de compra por unidad, en COP';
+# MAGIC ALTER TABLE dev_practica_ui.bronze.productos ALTER COLUMN activo COMMENT 'TRUE si el producto se sigue vendiendo';
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- 3. Restricciones de Integridad y Clave Primaria
+# MAGIC ALTER TABLE dev_practica_ui.bronze.productos ALTER COLUMN id_producto SET NOT NULL;
+# MAGIC ALTER TABLE dev_practica_ui.bronze.productos ALTER COLUMN nombre_producto SET NOT NULL;
+# MAGIC
+# MAGIC ALTER TABLE dev_practica_ui.bronze.productos 
+# MAGIC   ADD CONSTRAINT pk_productos PRIMARY KEY (id_producto);
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC DESCRIBE EXTENDED dev_practica_ui.bronze.productos;
 
 # COMMAND ----------
 
@@ -151,17 +189,28 @@ print("Versión de Apache Spark:", spark.version)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC INSERT OVERWRITE workspace.practica_ui.productos_ui BY NAME   -- reemplaza el contenido, emparejando por nombre
-# MAGIC SELECT
-# MAGIC   CAST(id_producto AS INT)              AS id_producto,       -- texto/entero -> INT
-# MAGIC   nombre_producto,                                            -- se copia tal cual
-# MAGIC   categoria,
-# MAGIC   marca,
-# MAGIC   CAST(precio_lista   AS DECIMAL(12,2)) AS precio_lista,      -- -> número exacto con 2 decimales
-# MAGIC   CAST(costo_unitario AS DECIMAL(12,2)) AS costo_unitario,
-# MAGIC   activo = 'Sí'                         AS activo             -- 'Sí'/'No' -> TRUE/FALSE
-# MAGIC FROM read_files('/Volumes/workspace/practica_ui/archivos_ui/productos.csv',
-# MAGIC                 format => 'csv', header => true);
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 2.4b: Carga Idempotente (Ingesta a Capa Bronze)
+# MAGIC -- PATRÓN: INSERT OVERWRITE BY NAME + Type Casting + Idempotencia
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC INSERT OVERWRITE dev_practica_ui.bronze.productos BY NAME
+# MAGIC SELECT 
+# MAGIC     CAST(id_producto AS INT)                    AS id_producto
+# MAGIC     ,CAST(nombre_producto AS STRING)            AS nombre_producto
+# MAGIC     ,CAST(categoria AS STRING)                  AS categoria
+# MAGIC     ,CAST(marca AS STRING)                      AS marca
+# MAGIC     ,CAST(precio_lista AS DECIMAL(12,2))        AS precio_lista
+# MAGIC     ,CAST(costo_unitario AS DECIMAL(12,2))      AS costo_unitario
+# MAGIC     ,CASE 
+# MAGIC         WHEN lower(trim(activo)) IN ('sí', 'si', 'true', '1') THEN TRUE 
+# MAGIC         ELSE FALSE 
+# MAGIC      END                                        AS activo
+# MAGIC FROM read_files(
+# MAGIC     '/Volumes/dev_practica_ui/raw/archivos_ui/productos.csv'
+# MAGIC     ,format => 'csv'
+# MAGIC     ,header => true
+# MAGIC );
 
 # COMMAND ----------
 
@@ -178,22 +227,31 @@ print("Versión de Apache Spark:", spark.version)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SHOW SCHEMAS IN workspace;      -- debe aparecer practica_ui
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 2.5: Auditoría de Existencia y Gobernanza en Unity Catalog
+# MAGIC -- ============================================================================
+# MAGIC
+# MAGIC -- 1. Listar schemas dentro de nuestro catálogo principal
+# MAGIC SHOW SCHEMAS IN dev_practica_ui;
+# MAGIC
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SHOW TABLES IN workspace.practica_ui;     -- debe aparecer productos_ui
+# MAGIC -- 2. Listar volúmenes en la capa RAW
+# MAGIC SHOW VOLUMES IN dev_practica_ui.raw;
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SHOW VOLUMES IN workspace.practica_ui;    -- debe aparecer archivos_ui
+# MAGIC -- 3. Listar los archivos fuente almacenados dentro del volumen
+# MAGIC LIST '/Volumes/dev_practica_ui/raw/archivos_ui/';
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC LIST '/Volumes/workspace/practica_ui/archivos_ui/';   -- debe aparecer productos.csv (1458 bytes)
+# MAGIC -- 4. Listar las tablas existentes en la capa BRONZE
+# MAGIC SHOW TABLES IN dev_practica_ui.bronze;
 
 # COMMAND ----------
 
@@ -226,7 +284,7 @@ print("Versión de Apache Spark:", spark.version)
 
 # MAGIC %sql
 # MAGIC SELECT *                                  -- todas las columnas
-# MAGIC FROM workspace.practica_ui.productos_ui;  -- de esta tabla
+# MAGIC FROM dev_practica_ui.bronze.productos;  -- de esta tabla
 
 # COMMAND ----------
 
@@ -242,7 +300,7 @@ print("Versión de Apache Spark:", spark.version)
 # MAGIC %sql
 # MAGIC SELECT nombre_producto AS producto,   -- columna 1, renombrada
 # MAGIC        precio_lista    AS precio      -- columna 2, renombrada
-# MAGIC FROM workspace.practica_ui.productos_ui;
+# MAGIC FROM dev_practica_ui.bronze.productos;
 
 # COMMAND ----------
 
@@ -258,7 +316,7 @@ print("Versión de Apache Spark:", spark.version)
 
 # MAGIC %sql
 # MAGIC SELECT nombre_producto, precio_lista
-# MAGIC FROM workspace.practica_ui.productos_ui
+# MAGIC FROM dev_practica_ui.bronze.productos
 # MAGIC WHERE categoria = 'Tecnología'      -- condición 1: la categoría es Tecnología
 # MAGIC   AND precio_lista < 300000;        -- condición 2: cuesta menos de 300.000
 
@@ -275,7 +333,7 @@ print("Versión de Apache Spark:", spark.version)
 
 # MAGIC %sql
 # MAGIC SELECT nombre_producto, categoria, precio_lista
-# MAGIC FROM workspace.practica_ui.productos_ui
+# MAGIC FROM dev_practica_ui.bronze.productos
 # MAGIC ORDER BY precio_lista DESC     -- del más caro al más barato
 # MAGIC LIMIT 5;                       -- solo los 5 primeros
 
@@ -291,7 +349,7 @@ print("Versión de Apache Spark:", spark.version)
 
 # MAGIC %sql
 # MAGIC SELECT DISTINCT categoria      -- cada categoría una sola vez
-# MAGIC FROM workspace.practica_ui.productos_ui
+# MAGIC FROM dev_practica_ui.bronze.productos
 # MAGIC ORDER BY categoria;            -- orden alfabético
 
 # COMMAND ----------
@@ -311,10 +369,10 @@ print("Versión de Apache Spark:", spark.version)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT nombre_producto,
-# MAGIC        precio_lista - costo_unitario                                  AS ganancia_unidad, -- resta por fila
-# MAGIC        round((precio_lista - costo_unitario) / precio_lista * 100, 1) AS margen_pct       -- porcentaje
-# MAGIC FROM workspace.practica_ui.productos_ui
+# MAGIC SELECT nombre_producto
+# MAGIC     ,  precio_lista - costo_unitario                                   AS ganancia_unidad -- resta por fila
+# MAGIC     ,   round((precio_lista - costo_unitario) / precio_lista * 100, 1) AS margen_pct       -- porcentaje
+# MAGIC FROM dev_practica_ui.bronze.productos
 # MAGIC ORDER BY margen_pct DESC;
 
 # COMMAND ----------
@@ -331,11 +389,11 @@ print("Versión de Apache Spark:", spark.version)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT categoria,                                 -- columna de agrupación
-# MAGIC        count(*)                 AS productos,     -- cuántos productos hay en el grupo
-# MAGIC        round(avg(precio_lista)) AS precio_promedio,
-# MAGIC        max(precio_lista)        AS precio_maximo
-# MAGIC FROM workspace.practica_ui.productos_ui
+# MAGIC SELECT categoria -- columna de agrupación
+# MAGIC      , count(*)                 AS productos     -- cuántos productos hay en el grupo
+# MAGIC      ,  round(avg(precio_lista)) AS precio_promedio
+# MAGIC      ,  max(precio_lista)        AS precio_maximo
+# MAGIC FROM dev_practica_ui.bronze.productos
 # MAGIC GROUP BY categoria                                -- una fila por categoría
 # MAGIC ORDER BY productos DESC;
 
@@ -351,8 +409,9 @@ print("Versión de Apache Spark:", spark.version)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT categoria, count(*) AS productos
-# MAGIC FROM workspace.practica_ui.productos_ui
+# MAGIC SELECT categoria
+# MAGIC       , count(*) AS productos
+# MAGIC FROM dev_practica_ui.bronze.productos
 # MAGIC GROUP BY categoria
 # MAGIC HAVING count(*) > 5;            -- solo los grupos con más de 5 filas
 
@@ -417,19 +476,40 @@ print("Versión de Apache Spark:", spark.version)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC DROP TABLE IF EXISTS clientes;   -- empezar desde cero (versión 0 del historial)
+# MAGIC -- ============================================================================
+# MAGIC -- SECCIÓN 4: Creación de la Tabla Delta 'clientes' en la Capa BRONZE
+# MAGIC -- ARQUITECTURA: dev_practica_ui.bronze
+# MAGIC -- ============================================================================
 # MAGIC
-# MAGIC CREATE TABLE clientes (
-# MAGIC   id_cliente      INT    NOT NULL COMMENT 'Identificador único del cliente',
-# MAGIC   nombre_completo STRING NOT NULL COMMENT 'Nombre de la persona o razón social',
-# MAGIC   email           STRING          COMMENT 'Correo de contacto',
-# MAGIC   ciudad          STRING          COMMENT 'Ciudad principal del cliente',
-# MAGIC   segmento        STRING          COMMENT 'Persona o Empresa',
-# MAGIC   fecha_registro  DATE            COMMENT 'Fecha de alta en el CRM',
-# MAGIC   CONSTRAINT pk_clientes PRIMARY KEY (id_cliente)
-# MAGIC )archivos_ui
-# MAGIC COMMENT 'Clientes de la Comercializadora Andina (datos de demostración)'
-# MAGIC TBLPROPERTIES ('capa' = 'plata', 'origen' = 'CRM', 'responsable' = 'equipo-datos');
+# MAGIC -- 1. Asegurar la existencia de la tabla 'clientes' en la capa BRONZE
+# MAGIC CREATE OR REPLACE TABLE dev_practica_ui.bronze.clientes (
+# MAGIC     id_cliente       INT           NOT NULL COMMENT 'Identificador único del cliente'
+# MAGIC     ,nombre_cliente  STRING        NOT NULL COMMENT 'Nombre completo del cliente'
+# MAGIC     ,email           STRING                 COMMENT 'Correo electrónico de contacto'
+# MAGIC     ,telefono        STRING                 COMMENT 'Número telefónico de contacto'
+# MAGIC     ,ciudad          STRING                 COMMENT 'Ciudad de residencia del cliente'
+# MAGIC     ,departamento    STRING                 COMMENT 'Departamento/Estado de residencia'
+# MAGIC     ,fecha_registro  DATE                   COMMENT 'Fecha de registro en el sistema'
+# MAGIC     ,CONSTRAINT pk_clientes PRIMARY KEY (id_cliente)
+# MAGIC )
+# MAGIC CLUSTER BY AUTO
+# MAGIC COMMENT 'Maestro de clientes (Capa Bronze). Datos de registro de clientes'
+# MAGIC TBLPROPERTIES (
+# MAGIC     'capa' = 'bronze'
+# MAGIC     ,'proyecto' = 'Comercializadora Andina'
+# MAGIC );
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC ALTER TABLE dev_practica_ui.bronze.clientes 
+# MAGIC   ADD COLUMN segmento STRING COMMENT 'Categoría de cliente: Persona o Empresa';
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- 2. Inspección metadata de la tabla creada
+# MAGIC DESCRIBE EXTENDED dev_practica_ui.bronze.clientes;
 
 # COMMAND ----------
 
@@ -445,7 +525,14 @@ print("Versión de Apache Spark:", spark.version)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC INSERT INTO clientes VALUES
+# MAGIC INSERT OVERWRITE dev_practica_ui.bronze.clientes (
+# MAGIC     id_cliente
+# MAGIC     ,nombre_cliente
+# MAGIC     ,email
+# MAGIC     ,ciudad
+# MAGIC     ,segmento
+# MAGIC     ,fecha_registro
+# MAGIC ) VALUES
 # MAGIC   -- (id, nombre, email, ciudad, segmento, fecha de registro)
 # MAGIC   (1,  'Laura Gómez Restrepo',          'laura.gomez@correo.com',            'Bogotá',       'Persona', DATE'2023-02-14'),
 # MAGIC   (2,  'Andrés Martínez Ruiz',          'andres.martinez@correo.com',        'Medellín',     'Persona', DATE'2023-03-02'),
@@ -463,7 +550,13 @@ print("Versión de Apache Spark:", spark.version)
 # MAGIC   (14, 'Santiago Díaz Londoño',         'santiago.diaz@correo.com',          'Bucaramanga',  'Persona', DATE'2024-10-10'),
 # MAGIC   (15, 'Isabella Hernández Ríos',       'isabella.hernandez@correo.com',     'Cali',         'Persona', DATE'2024-12-01');
 # MAGIC
-# MAGIC SELECT * FROM clientes ORDER BY id_cliente;   -- ver lo que quedó guardado
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC  -- ver lo que quedó guardado
+# MAGIC SELECT * FROM dev_practica_ui.bronze.clientes ORDER BY id_cliente;  
 
 # COMMAND ----------
 
@@ -477,7 +570,20 @@ print("Versión de Apache Spark:", spark.version)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC DESCRIBE DETAIL clientes;
+# MAGIC DESCRIBE DETAIL dev_practica_ui.bronze.clientes;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- 1. Ver el historial completo de cambios, quién los hizo y con qué operación
+# MAGIC DESCRIBE HISTORY dev_practica_ui.bronze.clientes;
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- 2. Hacer Time Travel (consultar cómo se veía la tabla en una versión o fecha anterior)
+# MAGIC SELECT * FROM dev_practica_ui.bronze.clientes VERSION AS OF 2;
 
 # COMMAND ----------
 
@@ -495,17 +601,57 @@ print("Versión de Apache Spark:", spark.version)
 
 # COMMAND ----------
 
+# ============================================================================
+# SECCIÓN 4.6: Validación de Calidad y Restricciones en Delta Lake
+# ============================================================================
+
 # Intento 1: un cliente SIN id_cliente (la columna es NOT NULL)
 try:
-    spark.sql("INSERT INTO clientes VALUES (NULL, 'Sin identificador', NULL, 'Cali', 'Persona', current_date())")
-except Exception as e:                       # si falla, guardamos el error en e
+    spark.sql("""
+        INSERT INTO dev_practica_ui.bronze.clientes (id_cliente, nombre_cliente, email, ciudad, segmento, fecha_registro) 
+        VALUES (NULL, 'Sin identificador', NULL, 'Cali', 'Persona', current_date())
+    """)
+except Exception as e:
     print("Rechazado por la restricción NOT NULL:\n", str(e).splitlines()[0][:220])
 
 # Intento 2: una fecha que no es fecha (la columna es de tipo DATE)
 try:
-    spark.sql("INSERT INTO clientes (id_cliente, nombre_completo, fecha_registro) VALUES (99, 'Fecha inválida', 'no-es-fecha')")
+    spark.sql("""
+        INSERT INTO dev_practica_ui.bronze.clientes (id_cliente, nombre_cliente, fecha_registro) 
+        VALUES (99, 'Fecha inválida', CAST('no-es-fecha' AS DATE))
+    """)
 except Exception as e:
     print("\nRechazado por el tipo de dato (schema enforcement):\n", str(e).splitlines()[0][:220])
+
+# COMMAND ----------
+
+# ============================================================================
+# SECCIÓN 4.6: Validación de Calidad y Restricciones en Delta Lake
+# ============================================================================
+
+# Intento 1: un cliente SIN id_cliente (la columna es NOT NULL)
+try:
+    spark.sql("""
+        INSERT INTO dev_practica_ui.bronze.clientes (id_cliente, nombre_cliente, email, ciudad, segmento, fecha_registro) 
+        VALUES (NULL, 'Sin identificador', NULL, 'Cali', 'Persona', current_date())
+    """)
+except Exception as e:
+    # Tomamos la primera línea limpia del error de Delta
+    error_msg = [line for line in str(e).splitlines() if line.strip()][0]
+    print("Rechazado por la restricción NOT NULL:\n", error_msg[:200])
+
+print("\n" + "="*80 + "\n")
+
+# Intento 2: una fecha que no es fecha (la columna es de tipo DATE)
+try:
+    spark.sql("""
+        INSERT INTO dev_practica_ui.bronze.clientes (id_cliente, nombre_cliente, fecha_registro) 
+        VALUES (99, 'Fecha inválida', CAST('no-es-fecha' AS DATE))
+    """)
+except Exception as e:
+    # Buscamos la línea del código de error ANSI de Spark (CAST_INVALID_INPUT)
+    error_msg = [line for line in str(e).splitlines() if 'CAST_INVALID_INPUT' in line or 'ANSI' in line or line.strip()]
+    print("Rechazado por el tipo de dato (schema enforcement):\n", error_msg[0][:200] if error_msg else str(e)[:200])
 
 # COMMAND ----------
 
@@ -521,9 +667,9 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC UPDATE clientes
-# MAGIC SET email = 'laura.gomez.r@correo.com'   -- nuevo valor
-# MAGIC WHERE id_cliente = 1;                    -- solo la fila de Laura
+# MAGIC UPDATE dev_practica_ui.bronze.clientes
+# MAGIC SET email = 'laura.gomez.r@correo.com'
+# MAGIC WHERE id_cliente = 1;
 
 # COMMAND ----------
 
@@ -538,9 +684,11 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC DELETE FROM clientes WHERE segmento = 'Empresa';    -- borra las 4 empresas
+# MAGIC DELETE FROM dev_practica_ui.bronze.clientes 
+# MAGIC WHERE segmento = 'Empresa';
 # MAGIC
-# MAGIC SELECT count(*) AS clientes_que_quedan FROM clientes;
+# MAGIC SELECT count(*) AS clientes_que_quedan 
+# MAGIC FROM dev_practica_ui.bronze.clientes;
 
 # COMMAND ----------
 
@@ -556,7 +704,7 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC DESCRIBE HISTORY clientes;
+# MAGIC DESCRIBE HISTORY dev_practica_ui.bronze.clientes;
 
 # COMMAND ----------
 
@@ -571,16 +719,18 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT segmento, count(*) AS clientes
-# MAGIC FROM clientes VERSION AS OF 2        -- la tabla tal como estaba en la versión 2
+# MAGIC SELECT segmento
+# MAGIC      , count(*) AS clientes
+# MAGIC FROM dev_practica_ui.bronze.clientes VERSION AS OF 2
 # MAGIC GROUP BY segmento;
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC RESTORE TABLE clientes TO VERSION AS OF 2;            -- deshacer el DELETE
+# MAGIC RESTORE TABLE dev_practica_ui.bronze.clientes TO VERSION AS OF 2;
 # MAGIC
-# MAGIC SELECT count(*) AS clientes_recuperados FROM clientes;
+# MAGIC SELECT count(*) AS clientes_recuperados 
+# MAGIC FROM dev_practica_ui.bronze.clientes;
 
 # COMMAND ----------
 
@@ -597,22 +747,44 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC MERGE INTO clientes AS destino                          -- tabla que se actualiza
+# MAGIC MERGE INTO dev_practica_ui.bronze.clientes AS destino
 # MAGIC USING (
-# MAGIC   SELECT * FROM VALUES                                  -- datos que llegan del CRM
-# MAGIC     (6,  'Valentina Castro Mejía', 'valecastro@correo.com',             'Bucaramanga', 'Persona', DATE'2023-09-30'),
-# MAGIC     (16, 'Ferretería La Esquina',  'ventas@ferreterialaesquina.com.co', 'Medellín',    'Empresa', DATE'2026-10-15'),
-# MAGIC     (17, 'Natalia Suárez Pineda',  'natalia.suarez@correo.com',         'Bogotá',      'Persona', DATE'2026-10-20')
-# MAGIC   AS crm(id_cliente, nombre_completo, email, ciudad, segmento, fecha_registro)
+# MAGIC   SELECT * FROM VALUES 
+# MAGIC     (6,  'Valentina Castro Mejía', 'valecastro@correo.com',             'Bucaramanga', 'Persona', DATE'2023-09-30')
+# MAGIC     ,(16, 'Ferretería La Esquina',  'ventas@ferreterialaesquina.com.co', 'Medellín',    'Empresa', DATE'2026-10-15')
+# MAGIC     ,(17, 'Natalia Suárez Pineda',  'natalia.suarez@correo.com',         'Bogotá',      'Persona', DATE'2026-10-20')
+# MAGIC   AS crm(id_cliente, nombre_cliente, email, ciudad, segmento, fecha_registro)
 # MAGIC ) AS origen
-# MAGIC ON destino.id_cliente = origen.id_cliente               -- cómo se emparejan las filas
-# MAGIC WHEN MATCHED THEN UPDATE SET *                          -- existe -> actualizar
-# MAGIC WHEN NOT MATCHED THEN INSERT *;                         -- no existe -> insertar
+# MAGIC ON destino.id_cliente = origen.id_cliente
+# MAGIC WHEN MATCHED THEN 
+# MAGIC   UPDATE SET 
+# MAGIC     destino.nombre_cliente = origen.nombre_cliente
+# MAGIC     ,destino.email          = origen.email
+# MAGIC     ,destino.ciudad         = origen.ciudad
+# MAGIC     ,destino.segmento       = origen.segmento
+# MAGIC     ,destino.fecha_registro = origen.fecha_registro
+# MAGIC WHEN NOT MATCHED THEN 
+# MAGIC   INSERT (
+# MAGIC     id_cliente
+# MAGIC     ,nombre_cliente
+# MAGIC     ,email
+# MAGIC     ,ciudad
+# MAGIC     ,segmento
+# MAGIC     ,fecha_registro
+# MAGIC   )
+# MAGIC   VALUES (
+# MAGIC     origen.id_cliente
+# MAGIC     ,origen.nombre_cliente
+# MAGIC     ,origen.email
+# MAGIC     ,origen.ciudad
+# MAGIC     ,origen.segmento
+# MAGIC     ,origen.fecha_registro
+# MAGIC   );
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT * FROM clientes ORDER BY id_cliente;   -- 17 clientes; el 6 con correo nuevo
+# MAGIC SELECT * FROM dev_practica_ui.bronze.clientes ORDER BY id_cliente;   -- 17 clientes; el 6 con correo nuevo
 
 # COMMAND ----------
 
@@ -709,8 +881,15 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC CREATE VOLUME IF NOT EXISTS comercializadora.sistema_ventas.archivos
-# MAGIC   COMMENT 'Archivos fuente del sistema de ventas (subidos a mano)';
+# MAGIC -- Crear el volumen en la capa RAW
+# MAGIC CREATE VOLUME IF NOT EXISTS dev_practica_ui.raw.archivos
+# MAGIC   COMMENT 'Archivos fuente (CSV, JSON, Parquet) del sistema en capa RAW';
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Listar el contenido del volumen
+# MAGIC LIST '/Volumes/dev_practica_ui/raw/archivos/';
 
 # COMMAND ----------
 
@@ -719,11 +898,6 @@ except Exception as e:
 # MAGIC arrastra `productos.csv`, `ventas_2025.json` y `vendedores.parquet` → **Upload**. Luego ejecuta la celda siguiente.
 # MAGIC
 # MAGIC **Qué esperar:** los 3 archivos con su tamaño en bytes (1458, 2536 y 606741).
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC LIST '/Volumes/comercializadora/sistema_ventas/archivos/';
 
 # COMMAND ----------
 
@@ -740,9 +914,11 @@ except Exception as e:
 
 # MAGIC %sql
 # MAGIC SELECT *
-# MAGIC FROM read_files('/Volumes/comercializadora/sistema_ventas/archivos/productos.csv',
-# MAGIC                 format => 'csv',      -- tipo de archivo
-# MAGIC                 header => true);      -- la 1.ª fila son los nombres
+# MAGIC FROM read_files(
+# MAGIC     '/Volumes/dev_practica_ui/raw/archivos_ui/productos.csv'
+# MAGIC     ,format => 'csv'
+# MAGIC     ,header => true
+# MAGIC );
 
 # COMMAND ----------
 
@@ -756,8 +932,12 @@ except Exception as e:
 
 # MAGIC %sql
 # MAGIC DESCRIBE QUERY
-# MAGIC SELECT * FROM read_files('/Volumes/comercializadora/sistema_ventas/archivos/productos.csv',
-# MAGIC                          format => 'csv', header => true);
+# MAGIC SELECT * 
+# MAGIC FROM read_files(
+# MAGIC     '/Volumes/dev_practica_ui/raw/archivos_ui/productos.csv'
+# MAGIC     ,format => 'csv'
+# MAGIC     ,header => true
+# MAGIC );
 
 # COMMAND ----------
 
@@ -773,11 +953,16 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT id_venta, fecha_venta, canal,
-# MAGIC        pago,                          -- el objeto completo (STRUCT)
-# MAGIC        pago.metodo AS metodo_pago,    -- un campo del objeto
-# MAGIC        estado
-# MAGIC FROM read_files('/Volumes/comercializadora/sistema_ventas/archivos/ventas_2025.json', format => 'json')
+# MAGIC SELECT id_venta
+# MAGIC      , fecha_venta
+# MAGIC      , canal
+# MAGIC      , pago                         -- el objeto completo (STRUCT)
+# MAGIC      , pago.metodo AS metodo_pago   -- un campo del objeto
+# MAGIC      , estado
+# MAGIC FROM read_files(
+# MAGIC     '/Volumes/dev_practica_ui/raw/archivos_ui/ventas_2025.json'
+# MAGIC     , format => 'json'
+# MAGIC )
 # MAGIC LIMIT 10;
 
 # COMMAND ----------
@@ -791,7 +976,11 @@ except Exception as e:
 
 # MAGIC %sql
 # MAGIC DESCRIBE QUERY
-# MAGIC SELECT * FROM read_files('/Volumes/comercializadora/sistema_ventas/archivos/ventas_2025.json', format => 'json');
+# MAGIC SELECT * 
+# MAGIC FROM read_files(
+# MAGIC     '/Volumes/dev_practica_ui/raw/archivos_ui/ventas_2025.json'
+# MAGIC     , format => 'json'
+# MAGIC );
 
 # COMMAND ----------
 
@@ -805,13 +994,19 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT * FROM read_files('/Volumes/comercializadora/sistema_ventas/archivos/vendedores.parquet');
+# MAGIC SELECT * 
+# MAGIC FROM read_files(
+# MAGIC     '/Volumes/dev_practica_ui/raw/archivos_ui/vendedores.parquet'
+# MAGIC );
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC DESCRIBE QUERY
-# MAGIC SELECT * FROM read_files('/Volumes/comercializadora/sistema_ventas/archivos/vendedores.parquet');
+# MAGIC SELECT * 
+# MAGIC FROM read_files(
+# MAGIC     '/Volumes/dev_practica_ui/raw/archivos_ui/vendedores.parquet'
+# MAGIC );
 
 # COMMAND ----------
 
@@ -826,7 +1021,7 @@ except Exception as e:
 
 # MAGIC %sql
 # MAGIC SELECT count(*) AS ventas
-# MAGIC FROM json.`/Volumes/comercializadora/sistema_ventas/archivos/ventas_2025.json`;
+# MAGIC FROM json.`/Volumes/dev_practica_ui/raw/archivos_ui/ventas_2025.json`;
 
 # COMMAND ----------
 
@@ -840,10 +1035,13 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT _metadata.file_name AS archivo,   -- nombre del archivo
-# MAGIC        _metadata.file_size AS bytes,     -- tamaño
-# MAGIC        count(*)            AS filas
-# MAGIC FROM read_files('/Volumes/comercializadora/sistema_ventas/archivos/ventas_2025.json', format => 'json')
+# MAGIC SELECT _metadata.file_name AS archivo   -- nombre del archivo
+# MAGIC      , _metadata.file_size AS bytes     -- tamaño
+# MAGIC      , count(*)            AS filas
+# MAGIC FROM read_files(
+# MAGIC     '/Volumes/dev_practica_ui/raw/archivos_ui/ventas_2025.json'
+# MAGIC     , format => 'json'
+# MAGIC )
 # MAGIC GROUP BY ALL;
 
 # COMMAND ----------
