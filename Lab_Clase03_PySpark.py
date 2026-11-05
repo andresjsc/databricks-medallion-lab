@@ -70,7 +70,7 @@ SCHEMA   = "sistema_ventas"                   # schema con las tablas del sistem
 SALIDA   = "analisis_pyspark"                 # schema nuevo para lo que creemos hoy
 VOLUMEN  = "salidas"                          # volumen nuevo para los archivos que escribamos hoy
 
-ARCHIVOS = f"/Volumes/{CATALOGO}/{SCHEMA}/archivos"          # volumen de la Clase 2 (entrada: 3 archivos)
+ARCHIVOS = f"/Volumes/dev_practica_ui/raw/archivos"          # volumen de la Clase 2 (entrada: 3 archivos)
 SALIDAS  = f"/Volumes/{CATALOGO}/{SALIDA}/{VOLUMEN}"         # volumen de la Clase 3 (salida)
 
 print("Archivos de entrada:", ARCHIVOS)
@@ -286,6 +286,13 @@ display(mensual)
 
 # COMMAND ----------
 
+print("Clientes  :", clientes.columns)
+print("Productos :", productos.columns)
+print("Vendedores:", vendedores.columns)
+print("Ventas    :", ventas.columns)
+
+# COMMAND ----------
+
 detalle_nombres = (ventas
                    .join(clientes,   "id_cliente")                    # inner join
                    .join(productos,  "id_producto")                   # inner join
@@ -301,6 +308,44 @@ display(detalle_nombres)
 
 # COMMAND ----------
 
+detalle_nombres = (ventas
+    .join(clientes, "id_cliente")                                  # inner join
+    .join(productos, "id_producto")                                # inner join
+    .join(vendedores, "id_vendedor", how="left")                   # left join: no perder ventas en línea
+    .select(
+        "id_venta",
+        "fecha_venta",
+        F.col("nombre_cliente").alias("cliente"),                  # Corregido a 'nombre_cliente'
+        "nombre_producto",
+        F.coalesce(F.col("nombre_vendedor"), F.lit("Venta en línea")).alias("vendedor"),
+        "canal",
+        "valor_neto"                                               # Ya existe en la tabla Ventas
+    )
+    .filter(F.col("id_venta").between(100001, 100005))
+    .orderBy("id_venta")
+)
+
+display(detalle_nombres)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT v.id_venta
+# MAGIC      , v.fecha_venta
+# MAGIC      , c.nombre_cliente AS cliente
+# MAGIC      , p.nombre_producto
+# MAGIC      , COALESCE(ven.nombre_vendedor, 'Venta en línea') AS vendedor
+# MAGIC      , v.canal
+# MAGIC      , v.valor_neto
+# MAGIC   FROM comercializadora.sistema_ventas.ventas v 
+# MAGIC   INNER JOIN comercializadora.sistema_ventas.clientes c    ON v.id_cliente = c.id_cliente
+# MAGIC   INNER JOIN comercializadora.sistema_ventas.productos p   ON v.id_producto = p.id_producto
+# MAGIC   LEFT JOIN comercializadora.sistema_ventas.vendedores ven ON v.id_vendedor = ven.id_vendedor
+# MAGIC  WHERE v.id_venta BETWEEN 100001 AND 100005
+# MAGIC  ORDER BY v.id_venta;
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### 1.8 · Lo que no tiene pareja (`left_anti`)
 # MAGIC *«¿Qué productos nunca se vendieron?»*
@@ -312,6 +357,19 @@ display(detalle_nombres)
 
 display(productos.join(ventas, "id_producto", how="left_anti")
                  .select("id_producto", "nombre_producto", "activo"))
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT p.id_producto
+# MAGIC      , p.nombre_producto
+# MAGIC      , p.activo
+# MAGIC   FROM comercializadora.sistema_ventas.productos p
+# MAGIC  WHERE NOT EXISTS (
+# MAGIC        SELECT 1
+# MAGIC          FROM comercializadora.sistema_ventas.ventas v
+# MAGIC         WHERE v.id_producto = p.id_producto
+# MAGIC  );
 
 # COMMAND ----------
 
@@ -337,6 +395,14 @@ def codigo_producto(texto):
     return sin_tildes.upper().replace(" ", "-").replace(",", "")
 
 display(productos.select("nombre_producto", codigo_producto("nombre_producto").alias("codigo")).limit(8))
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT nombre_producto
+# MAGIC      , REPLACE(UPPER(REGEXP_REPLACE(TRANSLATE(nombre_producto, 'áéíóúÁÉÍÓÚñÑ', 'aeiouAEIOUnN'), '[^a-zA-Z0-9 ]', '')), ' ', '-') AS codigo
+# MAGIC   FROM comercializadora.sistema_ventas.productos
+# MAGIC  LIMIT 8;
 
 # COMMAND ----------
 
@@ -373,6 +439,40 @@ print("Diferencias:", comparacion.filter((F.col("udf_python") != F.col("pandas_u
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC %sql
+# MAGIC WITH comparacion AS (
+# MAGIC   SELECT nombre_producto
+# MAGIC        -- Simulamos las columnas del laboratorio para la vista en SQL
+# MAGIC        , REPLACE(REGEXP_REPLACE(TRANSLATE(nombre_producto, 'áéíóúÁÉÍÓÚñÑ', 'aeiouAEIOUnN'), ',', ''), ' ', '-') AS udf_python
+# MAGIC        , REPLACE(REGEXP_REPLACE(TRANSLATE(nombre_producto, 'áéíóúÁÉÍÓÚñÑ', 'aeiouAEIOUnN'), ',', ''), ' ', '-') AS pandas_udf
+# MAGIC        , REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRANSLATE(nombre_producto, 'áéíóúÁÉÍÓÚñÑ', 'aeiouAEIOUnN')), ',', ''), ' ', '-') AS nativa
+# MAGIC     FROM comercializadora.sistema_ventas.productos
+# MAGIC )
+# MAGIC SELECT c.nombre_producto
+# MAGIC      , UPPER(c.udf_python) AS udf_python
+# MAGIC      , UPPER(c.pandas_udf) AS pandas_udf
+# MAGIC      , c.nativa
+# MAGIC   FROM comparacion c
+# MAGIC  LIMIT 10;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC WITH comparacion AS (
+# MAGIC   SELECT nombre_producto
+# MAGIC        , UPPER(REPLACE(REGEXP_REPLACE(TRANSLATE(nombre_producto, 'áéíóúÁÉÍÓÚñÑ', 'aeiouAEIOUnN'), ',', ''), ' ', '-')) AS udf_python
+# MAGIC        , UPPER(REPLACE(REGEXP_REPLACE(TRANSLATE(nombre_producto, 'áéíóúÁÉÍÓÚñÑ', 'aeiouAEIOUnN'), ',', ''), ' ', '-')) AS pandas_udf
+# MAGIC        , REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRANSLATE(nombre_producto, 'áéíóúÁÉÍÓÚñÑ', 'aeiouAEIOUnN')), ',', ''), ' ', '-') AS nativa
+# MAGIC     FROM comercializadora.sistema_ventas.productos
+# MAGIC )
+# MAGIC SELECT COUNT(*) AS diferencias
+# MAGIC   FROM comparacion c
+# MAGIC  WHERE c.udf_python != c.pandas_udf
+# MAGIC     OR c.udf_python != c.nativa;
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### 1.11 · Funciones de ventana: ranking
 # MAGIC *«Ranking de vendedores del año y aporte de cada uno al total.»*
@@ -405,6 +505,27 @@ display(ranking)
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC WITH por_vendedor AS (
+# MAGIC   SELECT ven.nombre_vendedor
+# MAGIC        , ven.sede
+# MAGIC        , SUM(v.valor_neto) AS ventas_netas
+# MAGIC    FROM comercializadora.sistema_ventas.ventas v
+# MAGIC    INNER JOIN comercializadora.sistema_ventas.vendedores ven ON v.id_vendedor = ven.id_vendedor
+# MAGIC    WHERE v.estado = 'Completada'
+# MAGIC    AND v.id_vendedor IS NOT NULL
+# MAGIC    GROUP BY ven.nombre_vendedor, ven.sede
+# MAGIC )
+# MAGIC SELECT pv.nombre_vendedor
+# MAGIC      , pv.sede
+# MAGIC      , pv.ventas_netas
+# MAGIC      , RANK() OVER(ORDER BY pv.ventas_netas DESC) AS puesto
+# MAGIC      , ROUND(pv.ventas_netas / SUM(pv.ventas_netas) OVER() * 100, 1) AS participacion_pct
+# MAGIC   FROM por_vendedor pv
+# MAGIC  ORDER BY puesto;
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### 1.12 · Funciones de ventana: el mejor de cada grupo, mes anterior y acumulado
 # MAGIC - `metas` es la tabla oro **`cumplimiento_metas`** que construiste en la Clase 2 con una CTE + CTAS (ventas de cada vendedor por mes frente a su meta).
@@ -423,6 +544,25 @@ display(metas.withColumn("n", F.row_number().over(v_mes))       # 1, 2, 3... den
              .filter(F.col("n") == 1)                            # el primero de cada mes
              .select("mes", "nombre_vendedor", "ventas_mes", "cumplimiento_pct")
              .orderBy("mes"))
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC WITH ranking_mensual AS (
+# MAGIC   SELECT cm.mes
+# MAGIC        , cm.nombre_vendedor
+# MAGIC        , cm.ventas_mes
+# MAGIC        , cm.cumplimiento_pct
+# MAGIC        , ROW_NUMBER() OVER(PARTITION BY cm.mes ORDER BY cm.ventas_mes DESC) AS n
+# MAGIC     FROM comercializadora.sistema_ventas.cumplimiento_metas cm
+# MAGIC )
+# MAGIC SELECT rm.mes
+# MAGIC      , rm.nombre_vendedor
+# MAGIC      , rm.ventas_mes
+# MAGIC      , rm.cumplimiento_pct
+# MAGIC   FROM ranking_mensual rm
+# MAGIC  WHERE rm.n = 1
+# MAGIC  ORDER BY rm.mes;
 
 # COMMAND ----------
 
